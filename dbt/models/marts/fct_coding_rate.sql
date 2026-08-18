@@ -28,6 +28,7 @@ select
     safe_divide(countif(coded.is_coded), count(*)) as coding_rate
 from coded
 left join agents
-    on coded.country_name = agents.country_name
-    and coded.agent_ameyo_user_id = agents.ameyo_user_id
+    on
+        coded.country_name = agents.country_name
+        and coded.agent_ameyo_user_id = agents.ameyo_user_id
 group by all

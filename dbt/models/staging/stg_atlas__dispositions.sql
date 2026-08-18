@@ -34,6 +34,6 @@ select
     c.country_name,
     c.ameyo_contact_center_id,
     c.currency_code
-from typed t
-left join {{ ref('country_code_mapping') }} c
+from typed as t
+left join {{ ref('country_code_mapping') }} as c
     on t.atlas_tenant_id = c.atlas_tenant_id

@@ -27,14 +27,15 @@
 
 select
     d.*,
-    coalesce(cps.attributed_payment_count, 0) as attributed_payment_count,
-    coalesce(cps.attributed_payment_count, 0) > 0 as is_paid_post_call,
     cps.attributed_payment_amount_local,
     cps.attributed_payment_amount_usd,
+    cps.first_attributed_payment_at,
+    coalesce(cps.attributed_payment_count, 0) as attributed_payment_count,
+    coalesce(cps.attributed_payment_count, 0) > 0 as is_paid_post_call,
     coalesce(cps.has_unconverted_payment, false) as has_unconverted_payment,
     coalesce(cps.used_estimated_fx_rate, false) as used_estimated_fx_rate,
-    cps.first_attributed_payment_at,
     timestamp_add(d.disposed_at_utc, interval {{ var('paid_post_call_window_days') }} day) as window_closes_at_utc,
-    current_timestamp() >= timestamp_add(d.disposed_at_utc, interval {{ var('paid_post_call_window_days') }} day) as is_window_closed
-from {{ ref('stg_atlas__dispositions') }} d
-left join {{ ref('int_call_payment_summary') }} cps using (call_log_id)
+    current_timestamp()
+    >= timestamp_add(d.disposed_at_utc, interval {{ var('paid_post_call_window_days') }} day) as is_window_closed
+from {{ ref('stg_atlas__dispositions') }} as d
+left join {{ ref('int_call_payment_summary') }} as cps on d.call_log_id = cps.call_log_id

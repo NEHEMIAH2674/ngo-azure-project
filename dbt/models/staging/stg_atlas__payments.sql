@@ -50,7 +50,7 @@ select
     c.ameyo_contact_center_id,
     c.currency_code,
     (d.amount_local = 0) as is_zero_amount
-from deduped d
-left join {{ ref('country_code_mapping') }} c
+from deduped as d
+left join {{ ref('country_code_mapping') }} as c
     on d.atlas_tenant_id = c.atlas_tenant_id
 where d._dedup_rank = 1

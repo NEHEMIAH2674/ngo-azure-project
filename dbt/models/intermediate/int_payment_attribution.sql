@@ -53,15 +53,18 @@ candidate_calls as (
             partition by p.payment_row_key
             order by d.disposed_at_utc desc
         ) as _preference_rank
-    from payments p
-    inner join dispositions d
-        on p.contract_id = d.contract_id
-        and d.disposed_at_utc <= p.paid_at_utc
-        and d.disposed_at_utc > timestamp_sub(p.paid_at_utc, interval {{ var('paid_post_call_window_days') }} day)
+    from payments as p
+    inner join dispositions as d
+        on
+            p.contract_id = d.contract_id
+            and p.paid_at_utc >= d.disposed_at_utc
+            and d.disposed_at_utc > timestamp_sub(p.paid_at_utc, interval {{ var('paid_post_call_window_days') }} day)
 ),
 
 attribution as (
-    select payment_row_key, call_log_id as attributed_call_log_id
+    select
+        payment_row_key,
+        call_log_id as attributed_call_log_id
     from candidate_calls
     where _preference_rank = 1
 )
@@ -69,15 +72,15 @@ attribution as (
 select
     p.*,
     a.attributed_call_log_id,
-    a.attributed_call_log_id is not null as is_attributed_to_a_call,
     fx.usd_to_local_rate,
     fx.rate_is_estimated as fx_rate_is_estimated,
+    a.attributed_call_log_id is not null as is_attributed_to_a_call,
     case
         when fx.usd_to_local_rate is not null then p.amount_local / fx.usd_to_local_rate
-        else null
     end as amount_usd
-from payments p
-left join attribution a using (payment_row_key)
+from payments as p
+left join attribution as a on p.payment_row_key = a.payment_row_key
 left join fx
-    on fx.currency_code = p.currency_code
-    and fx.rate_date = date(p.paid_at_utc)
+    on
+        p.currency_code = fx.currency_code
+        and fx.rate_date = date(p.paid_at_utc)

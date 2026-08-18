@@ -31,8 +31,8 @@ candidates as (
     select
         c.call_id,
         safe_cast(candidate as int64) as candidate_call_log_id
-    from calls c,
-    unnest(regexp_extract_all(c.notes_raw, r'\d+')) as candidate
+    from calls as c,
+        unnest(regexp_extract_all(c.notes_raw, r'\d+')) as candidate
     where c.notes_raw is not null
 ),
 
@@ -50,5 +50,5 @@ select
     c.*,
     m.matched_call_log_id,
     m.matched_call_log_id is not null as is_coded
-from calls c
-left join matched m using (call_id)
+from calls as c
+left join matched as m on c.call_id = m.call_id

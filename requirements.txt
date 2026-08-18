@@ -21,3 +21,6 @@ db-dtypes>=1.2
 
 # Dev / test
 pytest>=8.0
+ruff>=0.6
+sqlfluff>=3.0
+sqlfluff-templater-dbt>=3.0

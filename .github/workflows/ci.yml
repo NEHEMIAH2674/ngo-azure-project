@@ -30,10 +30,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Lint (ruff)
-        run: |
-          pip install ruff
-          ruff check ingestion orchestration dashboard
+      - name: Lint Python (ruff)
+        run: ruff check ingestion orchestration dashboard
 
       - name: Unit tests (ingestion)
         run: pytest ingestion/tests -v
@@ -55,6 +53,23 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: dbt deps
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: .
+        run: dbt deps
+
+      # sqlfluff's dbt templater compiles the project the same way `dbt
+      # build` does (ref()/source() resolution, our clean_string() macro,
+      # etc.), so it needs the same auth + deps as the build step below --
+      # placed after both rather than lint SQL "for free" before auth is
+      # ready.
+      - name: Lint SQL (sqlfluff)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: .
+        run: sqlfluff lint models
+
       - name: Ingest fixture data into CI-isolated BigQuery datasets
         run: python ingestion/load_csv_to_bq.py
 
@@ -69,6 +84,4 @@ jobs:
         working-directory: dbt
         env:
           DBT_PROFILES_DIR: .
-        run: |
-          dbt deps
-          dbt build
+        run: dbt build

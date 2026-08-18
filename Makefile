@@ -1,4 +1,4 @@
-.PHONY: install ingest fx transform test dashboard dagster all clean
+.PHONY: install ingest fx transform test lint lint-py lint-sql dashboard dagster all clean
 
 install:
 	pip install -r requirements.txt
@@ -19,6 +19,16 @@ transform:
 test:
 	pytest ingestion/tests
 	cd dbt && dbt test
+
+lint-py:
+	ruff check ingestion orchestration dashboard
+
+# Requires GCP auth (sqlfluff's dbt templater compiles the project the same
+# way `dbt build` does), so this isn't part of `make test`.
+lint-sql:
+	cd dbt && sqlfluff lint models
+
+lint: lint-py lint-sql
 
 dashboard:
 	streamlit run dashboard/streamlit_app.py

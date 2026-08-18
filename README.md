@@ -88,6 +88,18 @@ cd dbt && dbt test             # 33 data tests: uniqueness, not-null, referentia
                                 # + 2 singular tests protecting Metric 3 from double-counting
 ```
 
+## Linting
+
+```bash
+ruff check ingestion orchestration dashboard   # Python
+cd dbt && sqlfluff lint models                  # SQL -- needs GCP auth (see Setup); the dbt
+                                                 # templater compiles the project the same way
+                                                 # `dbt build` does, ref()/source()/our
+                                                 # clean_string() macro included
+```
+
+`dbt/.sqlfluff` targets the `bigquery` dialect via the `dbt` templater (not the generic `jinja` templater), so it understands this project's actual macros and `{{ ref() }}`/`{{ source() }}` calls rather than guessing at them. One rule is deliberately disabled: `structure.column_order` (ST06) wants wildcards → simple columns → calculations, but this project's convention is that grain-defining columns (stated in each mart's own "Grain: ..." header comment) lead the select list even when they're a `date()`/`coalesce()` expression — the two conflict, and the grain convention wins; see the comment in `.sqlfluff` for the specific files that motivated it.
+
 ## Orchestration (bonus)
 
 ```bash
@@ -98,7 +110,7 @@ Opens the Dagster UI. The asset graph is: 4 raw ingestion assets + `fx_rates` �
 
 ## CI
 
-Every push runs `.github/workflows/ci.yml`: ruff lint, `pytest`, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair (never touches the dev data). Auth uses Workload Identity Federation — no service-account key is stored in GitHub at all, consistent with the same key-less design used everywhere else in this repo.
+Every push runs `.github/workflows/ci.yml`: ruff lint, `pytest`, a sqlfluff lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair (never touches the dev data). Auth uses Workload Identity Federation — no service-account key is stored in GitHub at all, consistent with the same key-less design used everywhere else in this repo.
 
 ## Visualization (bonus)
 

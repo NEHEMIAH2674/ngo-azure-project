@@ -43,6 +43,6 @@ select
         timestamp(t.call_placed_at_local),
         interval c.local_tz_offset_hours hour
     ) as call_placed_at_utc
-from typed t
-left join {{ ref('country_code_mapping') }} c
+from typed as t
+left join {{ ref('country_code_mapping') }} as c
     on t.ameyo_contact_center_id = c.ameyo_contact_center_id

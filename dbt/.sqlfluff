@@ -1,0 +1,47 @@
+[sqlfluff]
+templater = dbt
+dialect = bigquery
+max_line_length = 120
+# structure.column_order (ST06): disabled -- see comment further down.
+exclude_rules = structure.column_order
+
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = .
+# No explicit target here: profiles.yml resolves it from DBT_TARGET (default
+# "dev"), so local runs and CI (which sets DBT_TARGET=ci) each lint against
+# their own target automatically, the same way `dbt build` already does.
+
+[sqlfluff:indentation]
+tab_space_size = 4
+
+[sqlfluff:layout:type:comma]
+line_position = trailing
+
+# structure.column_order (ST06) is excluded above: this project's
+# convention (every mart's header comment states "Grain: 1 row per (...)")
+# is that grain-defining columns lead the select list, in that stated
+# order, even when they're a date()/coalesce() expression rather than a
+# bare column. ST06 (wildcards, then simple columns, then calculations/
+# aggregates) pushes those grain columns to the back purely because
+# they're computed, which actively fights the more important convention --
+# confirmed by trying it and finding it made agg_daily_summary.sql/
+# fct_coding_rate.sql/fct_inbound_call_drivers.sql genuinely harder to
+# read against their own grain comments.
+
+# This project's SQL is written entirely lowercase (keywords, functions,
+# types) -- enforce it rather than leave it to per-file inference.
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.types]
+capitalisation_policy = lower
