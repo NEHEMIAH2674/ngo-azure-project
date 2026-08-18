@@ -1,0 +1,6 @@
+# Shell scripts must always check out with LF line endings, even on
+# Windows with core.autocrlf enabled -- a CRLF-mangled shebang or CRLF
+# inside a bash script's control structures can break execution, which
+# would be a real problem specifically for orchestration/run_dagster_dev.sh
+# (a fix for a Windows-specific issue) on the exact platform it targets.
+*.sh text eol=lf
