@@ -1,5 +1,13 @@
 """Declarative registry of the four raw sources: expected columns, BigQuery
-schema, and the key used to make loading idempotent.
+schema, and each source's natural (or synthetic) key.
+
+`key_columns` is documentation, not behavior: the loader itself is
+idempotent at the whole-file-hash level, not by key (see the "Idempotency
+strategy" note at the top of load_csv_to_bq.py for why key-based MERGE was
+tried and rejected). What each source's real-world identity actually is
+stays true and worth recording regardless -- readers of this file get it
+at a glance, and it's what dbt staging's own dedup logic (e.g.
+stg_atlas__payments.sql, partitioning by payment_row_key) is built on.
 
 Every business column lands as STRING, exactly as it appears in the CSV --
 no type casting, no trimming, no "" -> NULL conversion happens here. Raw is
@@ -30,7 +38,7 @@ class Source:
     filename: str  # expected CSV filename under --input-dir
     columns: list[str]  # expected CSV header, in order (also validates the file)
     schema: list[bigquery.SchemaField]  # all STRING; see module docstring
-    key_columns: list[str]  # MERGE ON key -- natural or synthetic
+    key_columns: list[str]  # this source's natural/synthetic key (docs only -- see module docstring)
     # Optional per-row transform, e.g. to compute a synthetic key. Receives
     # the raw dict of strings from csv parsing, returns the dict to load.
     # Must not alter the values of real source columns -- only add columns.
@@ -39,9 +47,12 @@ class Source:
 
 def _synthetic_payment_key(row: dict) -> dict:
     # A hash of the row's own (untouched) string values -- not a value
-    # judgment, just a stable identifier so re-loading the same extract
-    # MERGEs into the same row instead of duplicating it (Payments has no
-    # natural id in the source system).
+    # judgment, just a stable identifier for a payment that has no natural
+    # id in the source system. The loader doesn't use it for anything
+    # (loading is append-only, gated by file hash, not by key -- see
+    # load_csv_to_bq.py); it's carried through raw.payments so dbt staging
+    # can partition on it to collapse exact-duplicate transmissions
+    # (see stg_atlas__payments.sql).
     raw = "|".join(
         str(row.get(c, "")) for c in
         ["pay_timestamp_utc", "tenant_id", "contract_id",
