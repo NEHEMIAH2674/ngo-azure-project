@@ -1,35 +1,57 @@
 # d.light Call-Centre Effectiveness Pipeline
 
-A small, production-shaped analytics pipeline answering four questions about call-centre effectiveness for d.light's PAYGo solar business across Kenya, Uganda, Tanzania and Nigeria, built for the BI Analytics Engineer case study.
+**A BI Analytics Engineer case study, submitted by Nehemiah Onyinge.**
 
-See **[WRITEUP.md](WRITEUP.md)** for the four metrics' answers, data gaps found, assumptions made, and recommendations — this file only covers how to run it.
+d.light's call centres in Kenya, Uganda, Tanzania, and Nigeria run on two systems that don't talk to each other: Ameyo (the dialer) and Atlas (the CRM), linked only by an agent manually pasting an ID between them. The business asked four questions about whether those calls actually work. This repository is my answer — a small, production-shaped pipeline that ingests the raw exports, models them in dbt, orchestrates the whole thing with Dagster, and surfaces the results on a dashboard.
 
-## Architecture
+The full analysis — the four metrics, the data quality issues I found, the assumptions I made, and my recommendations — is in **[WRITEUP.md](WRITEUP.md)**. This file is just about running the code.
+
+## At a glance
+
+| | |
+|---|---|
+| **Stack** | Python · BigQuery · dbt · Dagster · Streamlit · GitHub Actions |
+| **Ingestion** | Idempotent, from-scratch Python loader — no downloadable service-account key exists anywhere (org policy), so auth is Workload Identity Federation / impersonation throughout |
+| **Modelling** | 12 dbt models (staging → intermediate → marts), 33 automated tests, 1 macro |
+| **Orchestration** | Dagster asset graph linking raw ingestion to the full dbt DAG, with data-quality checks and a daily schedule |
+| **CI/CD** | Every push: Python lint, SQL lint, unit tests, and a full `dbt build` against an isolated BigQuery dataset |
+| **Result** | 46/46 pipeline checks passing, four metrics answered with real numbers, and one finding (Tanzania's coding rate) worth a same-day conversation with the call-centre team |
+
+## How it's organized
 
 ```
 data/raw/*.csv ──┐
-                 ├──▶ ingestion/load_csv_to_bq.py ──▶ BigQuery raw.*  (append-only landing, byte-for-byte)
+                 ├──▶ ingestion/load_csv_to_bq.py ──▶ BigQuery raw.*  (append-only, byte-for-byte)
 exchangerate     │
 -api.com    ─────┘──▶ ingestion/api/fx/ (hook → operator) ──▶ BigQuery raw.fx_rates
 
-BigQuery raw.* ──▶ dbt staging ──▶ dbt intermediate ──▶ dbt marts ──▶ (dashboard, not yet built)
+BigQuery raw.* ──▶ dbt staging ──▶ dbt intermediate ──▶ dbt marts ──▶ Streamlit dashboard
 
-Dagster (orchestration/) wires all of the above into one graph: raw ingestion
-assets → dbt's staging/intermediate/marts graph, with asset checks and a
-daily schedule.
+Dagster wires all of the above into one graph: raw ingestion → dbt's staging/
+intermediate/marts DAG, with asset checks and a daily schedule.
 ```
 
-- **Ingestion** (`ingestion/`): a from-scratch Python loader, not a managed connector — see [WRITEUP.md](WRITEUP.md) for why. Idempotent via whole-file content hash (`_load_manifest`); raw lands with zero transformation.
-- **Transformation** (`dbt/`): staging (1:1 typed/cleaned per source) → intermediate (coding match, payment attribution) → marts (the four metrics).
-- **Orchestration** (`orchestration/`): Dagster wraps ingestion + dbt into one asset graph.
-- **CI** (`.github/workflows/ci.yml`): lint, unit tests, and a full `dbt build` against an isolated CI BigQuery dataset on every push.
+| Folder | What's there |
+|---|---|
+| `ingestion/` | The Python loader and the exchangerate-api.com integration (`api/fx/hook.py`, `fx_operator.py`, `main.py`) |
+| `dbt/` | Staging → intermediate → marts models, seeds, tests, and the `.sqlfluff` config |
+| `orchestration/` | The Dagster project that wires ingestion and dbt into one schedulable graph |
+| `dashboard/` | A Streamlit app on top of the marts |
+| `data/raw/` | The four source extracts, committed so the whole thing is reproducible from a clone |
+| `WRITEUP.md` | The actual analysis — read this first if you only read one file |
+
+A few design choices worth knowing about before you dig in:
+
+- **Raw is raw.** Every business column lands in BigQuery exactly as it appears in the CSV — no casting, no trimming, no deduplication. That choice mattered in practice: it's what let me find and document a set of genuinely conflicting agent records (see WRITEUP.md, gap #4) that an earlier, more "helpful" version of the loader had been silently collapsing.
+- **No service-account keys exist.** This GCP org disables key export entirely, so every layer — local dev, Dagster, and CI — authenticates by impersonating a narrowly-scoped service account rather than a downloadable secret.
+- **Every number that could be wrong says so.** A payment still inside its 3-day attribution window is flagged `is_window_closed = false`, not silently included as final. A USD figure converted at an estimated exchange rate is flagged `*`, not presented as exact. Nothing here quietly assumes the best case.
 
 ## Prerequisites
 
 - Python 3.12+
-- A Google Cloud project with BigQuery enabled (this repo targets `npd-01`; change `GCP_PROJECT_ID` in `.env` to point at your own)
-- `gcloud` CLI, authenticated (`gcloud auth application-default login`)
-- (Optional, for Metric 3 in USD) a free API key from [exchangerate-api.com](https://www.exchangerate-api.com/)
+- A Google Cloud project with BigQuery enabled (this repo targets `npd-01`; point `GCP_PROJECT_ID` in `.env` at your own to run it elsewhere)
+- `gcloud` CLI, authenticated
+- Optional, for Metric 3 in USD: a free key from [exchangerate-api.com](https://www.exchangerate-api.com/)
 
 ## Setup
 
@@ -39,7 +61,7 @@ cp .env.example .env
 pip install -r requirements.txt
 ```
 
-Auth note: this GCP org disables service-account key export (`constraints/iam.disableServiceAccountKeyCreation`), so there is no JSON key anywhere in this repo or on disk. Locally, auth is your own `gcloud` ADC impersonating a narrowly-scoped service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`, granted only `bigquery.dataEditor` + `bigquery.jobUser`):
+**Auth**: this org disables service-account key export, so there's no JSON key anywhere in this repo or on disk. Locally, you authenticate as yourself and impersonate a narrowly-scoped service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`, granted only `bigquery.dataEditor` + `bigquery.jobUser`):
 
 ```bash
 gcloud auth application-default login
@@ -47,24 +69,24 @@ gcloud iam service-accounts add-iam-policy-binding dlight-case-study@npd-01.iam.
   --member="user:<your-email>" --role="roles/iam.serviceAccountTokenCreator"
 ```
 
-## Run it end to end
+## Running it end to end
 
 ```bash
-make ingest      # load the 4 CSVs into BigQuery raw.* (idempotent: re-running is a no-op)
-make fx          # fetch/cache missing FX rates (no-ops gracefully if no key is set)
-make transform   # dbt seed + run + test: builds staging → intermediate → marts
-make test        # pytest on ingestion + dbt test again, standalone
+make ingest      # load the 4 CSVs into BigQuery raw.*   (idempotent: re-running is a no-op)
+make fx          # fetch/cache missing FX rates          (no-ops gracefully without a key)
+make transform   # dbt seed + run + test: staging → intermediate → marts
+make test        # pytest on ingestion + dbt test, standalone
 ```
 
-Or the whole thing via Dagster (recommended — this is what "runs every morning against yesterday's data" in production):
+Or run the whole thing as one orchestrated pipeline (recommended — this is what "runs every morning against yesterday's data" looks like in production):
 
 ```bash
-make dagster     # opens the Dagster UI at localhost:3000; click "Materialize all"
+make dagster     # opens the Dagster UI at localhost:3000 — click "Materialize all"
 ```
 
-What you should see: BigQuery ends up with two dataset groups — `dlight_raw` (4 landing tables + `fx_rates` + `_load_manifest`, all untouched CSV data) and `dlight_analytics_{staging,intermediate,marts}` (12 dbt models). `dbt build` / the Dagster run should finish with **46/46 steps passing** (1 seed, 7 tables, 5 views, 33 tests).
+**What you should see**: two dataset groups in BigQuery — `dlight_raw` (four landing tables plus `fx_rates` and `_load_manifest`, all untouched CSV data) and `dlight_analytics_{staging,intermediate,marts}` (12 dbt models). Both `dbt build` and the Dagster run finish with **46 out of 46 steps passing** — 1 seed, 7 tables, 5 views, 33 tests.
 
-### Deleting and rebuilding from scratch
+### Deleting everything and rebuilding from scratch
 
 ```bash
 bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_raw
@@ -74,31 +96,25 @@ bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_analytics_marts
 make ingest && make fx && make transform
 ```
 
-Everything regenerates from `data/raw/*.csv` — no other manual setup required.
+Everything regenerates from `data/raw/*.csv` alone — no other manual setup required.
 
-### A new day of data
+### Handling a new day of data
 
-Drop a new day's 4 CSVs into `data/raw/` (same filenames) and re-run `make ingest`. The loader diffs by whole-file content hash, so it only loads what's actually new; nothing here needs editing.
+Drop the next day's 4 CSVs into `data/raw/` (same filenames) and re-run `make ingest`. The loader diffs by whole-file content hash, so it only loads what's actually new — nothing here needs editing to handle it.
 
-## Running tests
-
-```bash
-pytest ingestion/tests -v     # 8 unit tests: parsing, rejects, idempotency key stability, FX hook retry/auth
-cd dbt && dbt test             # 33 data tests: uniqueness, not-null, referential integrity,
-                                # + 2 singular tests protecting Metric 3 from double-counting
-```
-
-## Linting
+## Quality checks
 
 ```bash
+# Tests
+pytest ingestion/tests -v      # 8 unit tests: parsing, rejects, idempotency, FX auth/retry
+cd dbt && dbt test              # 33 data tests: uniqueness, not-null, referential integrity,
+                                 # plus 2 singular tests protecting Metric 3 from double-counting
+
+# Linting
 ruff check ingestion orchestration dashboard   # Python
-cd dbt && sqlfluff lint models                  # SQL -- needs GCP auth (see Setup); the dbt
-                                                 # templater compiles the project the same way
-                                                 # `dbt build` does, ref()/source()/our
-                                                 # clean_string() macro included
+cd dbt && sqlfluff lint models                  # SQL, via the dbt templater (understands our
+                                                 # actual macros and ref()/source() calls)
 ```
-
-`dbt/.sqlfluff` targets the `bigquery` dialect via the `dbt` templater (not the generic `jinja` templater), so it understands this project's actual macros and `{{ ref() }}`/`{{ source() }}` calls rather than guessing at them. One rule is deliberately disabled: `structure.column_order` (ST06) wants wildcards → simple columns → calculations, but this project's convention is that grain-defining columns (stated in each mart's own "Grain: ..." header comment) lead the select list even when they're a `date()`/`coalesce()` expression — the two conflict, and the grain convention wins; see the comment in `.sqlfluff` for the specific files that motivated it.
 
 ## Orchestration (bonus)
 
@@ -106,16 +122,16 @@ cd dbt && sqlfluff lint models                  # SQL -- needs GCP auth (see Set
 make dagster
 ```
 
-Opens the Dagster UI. The asset graph is: 4 raw ingestion assets + `fx_rates` → the full dbt staging/intermediate/marts DAG, auto-generated from the dbt manifest and linked to the raw assets via a custom `DagsterDbtTranslator` (so "the transform waits for the load" is an enforced graph dependency, not a convention). 8 asset checks cover row-count sanity and null-rate on each source's key column, plus an FX-freshness check. A daily schedule (`0 6 * * *`) simulates the "runs every morning against yesterday's data" requirement.
+The asset graph is four raw-ingestion assets plus `fx_rates`, feeding the full dbt staging → intermediate → marts DAG — auto-generated from the dbt manifest and linked to the raw assets so "the transform waits for the load" is an enforced dependency in the graph, not just a convention. Eight asset checks cover row-count sanity and null-rate on each source's key column, plus an FX-freshness check. A daily schedule (`0 6 * * *`) mirrors the "runs every morning against yesterday's data" requirement — and because every layer is idempotent by construction, a failed run can simply be retried with no cleanup step.
 
-## CI
+## CI/CD
 
-Every push runs `.github/workflows/ci.yml`: ruff lint, `pytest`, a sqlfluff lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair (never touches the dev data). Auth uses Workload Identity Federation — no service-account key is stored in GitHub at all, consistent with the same key-less design used everywhere else in this repo.
+Every push runs `.github/workflows/ci.yml`: Python lint, unit tests, a SQL lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair that never touches the dev data. Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.
 
-## Visualization (bonus)
+## Dashboard (bonus)
 
 ```bash
-make dashboard   # streamlit run dashboard/streamlit_app.py — opens at localhost:8501
+make dashboard   # opens at localhost:8501
 ```
 
-A Streamlit app reading only `dlight_analytics_marts.*` (never raw/staging). Sidebar filters for market and day; a KPI row with the provisional-window flag surfaced explicitly (turns into a warning banner the moment any disposition's 3-day payment window is still open); one tab per metric — Metric 1's coding rate by market plus the full agent/campaign coaching detail table, Metric 2's paid-post-call rate (denominator = dispositions with a contract_id, matching WRITEUP.md's headline table) alongside Metric 3's per-market local-currency value recovered, and Metric 4's inbound-driver drill-down (level 1 → 2 → 3, per the brief's ask). Markets get a fixed color across every chart in every tab — same market, same color, everywhere — and Metric 4 uses a single sequential hue rather than a categorical palette, since it's a magnitude comparison of reasons, not a set of persistent identities.
+A Streamlit app reading only from the marts. Sidebar filters for market and day; a KPI row that turns into a visible warning the moment any payment is still inside its 3-day attribution window; one tab per metric, including the full agent/campaign coaching table for Metric 1 and a level-1-to-3 drill-down for Metric 4. Every market keeps the same color on every chart, in every tab.
