@@ -33,8 +33,9 @@ lint: lint-py lint-sql
 dashboard:
 	streamlit run dashboard/streamlit_app.py
 
+# Wrapped in a bounded retry -- see orchestration/run_dagster_dev.sh for why.
 dagster:
-	cd orchestration && dagster dev -w workspace.yaml
+	bash orchestration/run_dagster_dev.sh
 
 # One command: delete + rebuild everything from scratch, per the brief's ask.
 all: ingest fx transform

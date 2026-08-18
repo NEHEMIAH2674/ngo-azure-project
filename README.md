@@ -124,6 +124,8 @@ make dagster
 
 The asset graph is four raw-ingestion assets plus `fx_rates`, feeding the full dbt staging → intermediate → marts DAG — auto-generated from the dbt manifest and linked to the raw assets so "the transform waits for the load" is an enforced dependency in the graph, not just a convention. Eight asset checks cover row-count sanity and null-rate on each source's key column, plus an FX-freshness check. A daily schedule (`0 6 * * *`) mirrors the "runs every morning against yesterday's data" requirement — and because every layer is idempotent by construction, a failed run can simply be retried with no cleanup step.
 
+`make dagster` runs `orchestration/run_dagster_dev.sh` rather than calling `dagster dev` directly: on Windows, `dagster dev`'s webserver subprocess occasionally exits immediately with `STATUS_DLL_INIT_FAILED` — a transient OS-level subprocess-spawn hiccup, confirmed non-deterministic (the identical command succeeds on retry with no code or config change). The wrapper polls the real webserver health endpoint and retries up to 3 times if it dies before coming up; if it fails 3 times in a row, that's no longer the known flake and is worth investigating for real.
+
 ## CI/CD
 
 Every push runs `.github/workflows/ci.yml`: Python lint, unit tests, a SQL lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair that never touches the dev data. Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.
