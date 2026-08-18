@@ -1,0 +1,61 @@
+version: 2
+
+seeds:
+  - name: country_code_mapping
+    description: >
+      Bridges Ameyo's contact_center_id (1-4) and Atlas's tenant_id
+      (1001-1004), which use unrelated numbering schemes, plus each
+      market's fixed UTC offset (no market observes DST) and currency.
+    columns:
+      - name: country_name
+        tests: [unique, not_null]
+      - name: ameyo_contact_center_id
+        tests: [unique, not_null]
+      - name: atlas_tenant_id
+        tests: [unique, not_null]
+
+models:
+  - name: stg_ameyo__calls
+    description: One row per Ameyo outbound call leg, typed and with a UTC timestamp derived from the local one.
+    columns:
+      - name: call_id
+        tests: [unique, not_null]
+      - name: ameyo_contact_center_id
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
+
+  - name: stg_atlas__dispositions
+    description: One row per Atlas disposition, typed.
+    columns:
+      - name: call_log_id
+        tests: [unique, not_null]
+      - name: atlas_tenant_id
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1001, 1002, 1003, 1004]
+                quote: false
+
+  - name: stg_atlas__payments
+    description: One row per payment transaction, after collapsing exact-duplicate transmissions.
+    columns:
+      - name: payment_row_key
+        tests: [unique, not_null]
+
+  - name: stg_agent_mapping
+    description: One row per agent, after deterministically resolving conflicting duplicate source rows.
+    columns:
+      - name: ameyo_user_id
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [country_name, ameyo_user_id]
+
+  - name: stg_fx__rates
+    description: One row per (rate_date, currency) USD exchange rate.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [rate_date, currency_code]

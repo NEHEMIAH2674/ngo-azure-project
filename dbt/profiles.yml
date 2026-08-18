@@ -1,0 +1,30 @@
+# Committed on purpose: contains no secrets. Auth is either ambient gcloud
+# ADC + service-account impersonation (dev, matching ingestion/common.py) or
+# a CI-supplied service-account keyfile (ci target) -- see .env.example.
+dlight_callcentre_analytics:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics') }}"
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      impersonate_service_account: "{{ env_var('BQ_IMPERSONATE_SERVICE_ACCOUNT', '') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300
+    ci:
+      # google-github-actions/auth@v2 (Workload Identity Federation) writes
+      # an "external account" credential config to GOOGLE_APPLICATION_
+      # CREDENTIALS, not a legacy service-account JSON key -- `oauth`
+      # (ADC-style loading via google.auth.default()) understands both;
+      # `service-account`/`keyfile` only understands the legacy kind.
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics_ci') }}"
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300

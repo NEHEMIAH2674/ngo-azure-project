@@ -1,0 +1,4 @@
+# `dagster dev` (run from the repo root, or via `make dagster`) reads this
+# to locate the Definitions object.
+load_from:
+  - python_module: dagster_project.definitions

@@ -1,0 +1,38 @@
+# secrets
+.env
+service-account*.json
+*-sa.json
+*credentials*.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+.dbt/
+
+# test artifacts
+.pytest_cache/
+ingestion/tests/.pytest_cache/
+
+# dagster
+orchestration/.dagster_home/
+**/storage/
+
+# streamlit
+dashboard/.streamlit/secrets.toml
+
+# os
+.DS_Store
+Thumbs.db
+
+# Stray locked duplicate at repo root (Windows file-lock artifact from an
+# earlier session) -- the real copy lives at data/raw/Payments Data Atlas.csv
+/Payments Data Atlas.csv

@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: fct_coding_rate
+    description: >
+      METRIC 1. One row per (call_date_local, market, campaign, agent).
+      coding_rate = coded_calls / total_outbound_calls.
+    columns:
+      - name: total_outbound_calls
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [call_date_local, market, campaign_name, agent_ameyo_user_id]
+
+  - name: fct_paid_post_call
+    description: >
+      METRICS 2 & 3. One row per Atlas disposition. is_paid_post_call and
+      attributed_payment_amount_usd answer "did a payment follow this call
+      within {{ var('paid_post_call_window_days') }} days, and how much".
+      is_window_closed marks whether that answer is final or still
+      provisional for this run -- see the model's own header comment for
+      the full moving-window explanation.
+    columns:
+      - name: call_log_id
+        tests: [unique, not_null]
+      - name: attributed_payment_count
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+  - name: fct_inbound_call_drivers
+    description: >
+      METRIC 4. One row per (disposition_date_utc, market, level_one,
+      level_two, level_three) among inbound-disposed calls.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [disposition_date_utc, market, level_one, level_two, level_three]
+
+  - name: agg_daily_summary
+    description: One row per (day, market); rollup of all four metrics for dashboard consumption.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [day, market]

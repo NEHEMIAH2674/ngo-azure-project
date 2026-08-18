@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# These files intentionally sys.path.insert() the ingestion/ dir before
+# importing from it (see each file's module docstring), so their imports
+# can't sit at the very top of the file.
+"orchestration/dagster_project/assets.py" = ["E402"]
+"orchestration/dagster_project/checks.py" = ["E402"]
+"ingestion/tests/*.py" = ["E402"]

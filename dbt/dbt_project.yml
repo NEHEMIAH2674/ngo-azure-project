@@ -1,0 +1,37 @@
+name: 'dlight_callcentre_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dlight_callcentre_analytics'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # The moving-window problem: a call cannot be assessed for "paid post
+  # call" until this many days have passed. Centralized here so every
+  # model that reasons about window-closure agrees on the same number.
+  paid_post_call_window_days: 3
+
+seeds:
+  dlight_callcentre_analytics:
+    country_code_mapping:
+      +column_types:
+        ameyo_contact_center_id: int64
+        atlas_tenant_id: int64
+        local_tz_offset_hours: int64
+
+models:
+  dlight_callcentre_analytics:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts

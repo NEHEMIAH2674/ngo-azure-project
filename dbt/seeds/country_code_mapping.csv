@@ -1,0 +1,5 @@
+country_name,ameyo_contact_center_id,atlas_tenant_id,local_tz_offset_hours,currency_code
+Kenya,1,1001,3,KES
+Uganda,2,1002,3,UGX
+Tanzania,3,1003,3,TZS
+Nigeria,4,1004,1,NGN

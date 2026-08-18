@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: dlight_raw
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: "{{ env_var('BQ_RAW_DATASET', 'dlight_raw') }}"
+    description: >
+      Append-only landing tables loaded verbatim by ingestion/load_csv_to_bq.py.
+      Every business column is STRING with no casting, trimming, or
+      deduplication applied -- see that script's module docstring for why.
+    tables:
+      - name: ameyo_calls
+        description: One row per physical CSV row from every distinct Outbound Calls Ameyo.csv ever loaded.
+      - name: atlas_dispositions
+        description: One row per physical CSV row from every distinct Calls Dispositions Atlas.csv ever loaded.
+      - name: payments
+        description: One row per physical CSV row from every distinct Payments Data Atlas.csv ever loaded.
+      - name: agent_mapping
+        description: One row per physical CSV row from every distinct Atlas Ameyo Mapping.csv ever loaded.
+      - name: fx_rates
+        description: Daily USD exchange rates fetched by ingestion/fetch_fx_rates.py, keyed on (rate_date, currency).

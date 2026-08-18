@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write # required for keyless GCP auth via Workload Identity Federation
+
+env:
+  GCP_PROJECT_ID: npd-01
+  BQ_RAW_DATASET: dlight_raw_ci
+  BQ_ANALYTICS_DATASET: dlight_analytics_ci
+  BQ_LOCATION: US
+  DBT_TARGET: ci
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check ingestion orchestration dashboard
+
+      - name: Unit tests (ingestion)
+        run: pytest ingestion/tests -v
+
+      # -------------------------------------------------------------
+      # Auth: Workload Identity Federation, not a downloadable JSON
+      # key. This project's org policy (constraints/iam.disableServ
+      # iceAccountKeyCreation) blocks key export outright, so this
+      # isn't a stylistic choice -- it's the only auth path available,
+      # and it happens to also be the safer one: no long-lived secret
+      # exists anywhere, on disk or in GitHub, to leak or rotate.
+      # -------------------------------------------------------------
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/777714686286/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+          service_account: dlight-case-study@npd-01.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Ingest fixture data into CI-isolated BigQuery datasets
+        run: python ingestion/load_csv_to_bq.py
+
+      # No EXCHANGE_RATE_API_KEY secret is configured for CI on purpose:
+      # this exercises exactly the failure path in
+      # ingestion/fetch_fx_rates.py (missing key -> log + continue,
+      # never crash) that the brief asks us to demonstrate handling.
+      - name: Refresh FX rates (expected to no-op without a key in CI)
+        run: python ingestion/fetch_fx_rates.py
+
+      - name: dbt build (seed + run + test)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: .
+        run: |
+          dbt deps
+          dbt build

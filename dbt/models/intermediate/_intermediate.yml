@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: int_calls__coded
+    description: One row per Ameyo call leg, with is_coded and the matched Atlas call_log_id, if any.
+    columns:
+      - name: call_id
+        tests: [unique, not_null]
+
+  - name: int_payment_attribution
+    description: One row per payment, with the single call it's attributed to (if any) and its USD conversion.
+    columns:
+      - name: payment_row_key
+        tests: [unique, not_null]
+      - name: attributed_call_log_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_atlas__dispositions')
+                field: call_log_id
+              config:
+                where: "attributed_call_log_id is not null"
+
+  - name: int_call_payment_summary
+    description: One row per call_log_id with at least one attributed payment; aggregates int_payment_attribution to the call grain.
+    columns:
+      - name: call_log_id
+        tests: [unique, not_null]
