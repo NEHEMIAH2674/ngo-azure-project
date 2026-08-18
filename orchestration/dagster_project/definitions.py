@@ -6,6 +6,8 @@ Wires together:
   - the full dbt staging -> intermediate -> marts graph, auto-generated
     from the dbt manifest                         (assets.py, via dagster-dbt)
   - asset checks on the raw layer                 (checks.py)
+  - freshness checks on the raw layer and the consumer-facing marts,
+    tied to the same daily schedule                (freshness.py)
   - one job selecting the whole graph + a daily schedule, simulating "the
     pipeline runs every morning against yesterday's data" from the brief.
 
@@ -22,6 +24,7 @@ from dagster_dbt import DbtCliResource
 from .assets import dlight_dbt_assets, fx_rates_asset, raw_ingestion_assets
 from .checks import raw_ingestion_checks
 from .dbt_project import dlight_dbt_project
+from .freshness import freshness_checks
 
 daily_pipeline_job = dg.define_asset_job(
     name="daily_pipeline",
@@ -40,7 +43,7 @@ daily_schedule = dg.ScheduleDefinition(
 
 defs = dg.Definitions(
     assets=[*raw_ingestion_assets, fx_rates_asset, dlight_dbt_assets],
-    asset_checks=raw_ingestion_checks,
+    asset_checks=[*raw_ingestion_checks, *freshness_checks],
     jobs=[daily_pipeline_job],
     schedules=[daily_schedule],
     resources={
