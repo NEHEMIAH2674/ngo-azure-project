@@ -219,8 +219,14 @@ def main() -> None:
                          help="Load a single source; default loads all four.")
     # Accepted for symmetry with `make ingest DATE=...`; the loader itself
     # is date-agnostic (see module docstring) but this makes intent explicit
-    # in logs and orchestration.
-    parser.add_argument("--date", default=None)
+    # in logs and orchestration. nargs="?" is required, not cosmetic: the
+    # Makefile's `ingest:` target always passes `--date $(DATE)`, and DATE
+    # has no default, so bare `make ingest` expands to a literal trailing
+    # `--date` with nothing after it. Without nargs="?", argparse treats
+    # that as a missing required value and exits before ensure_infra() ever
+    # runs -- silently breaking the "delete your tables, run one command,
+    # get them back" promise for the exact invocation the README documents.
+    parser.add_argument("--date", nargs="?", default=None)
     args = parser.parse_args()
 
     client = get_bigquery_client()
