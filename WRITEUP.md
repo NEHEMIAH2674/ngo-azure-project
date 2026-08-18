@@ -38,16 +38,16 @@ Interesting inversion from Metric 1: Tanzania has by far the worst coding rate b
 
 ### Metric 3 — Value recovered from call-centre intervention
 
-**Not computable in USD without a live exchange-rate key.** The pipeline correctly returns `NULL` for every `attributed_payment_amount_usd` rather than fabricating a number — this is by design (see `ingestion/fetch_fx_rates.py`), not a bug. The moment a real `EXCHANGE_RATE_API_KEY` is set and `make fx` is re-run, these figures populate with no other change needed.
+**$14,007.04 USD total** across all four markets, once a live `EXCHANGE_RATE_API_KEY` was configured (`ingestion/api/fx/`) — before that, the pipeline correctly returned `NULL` for every `attributed_payment_amount_usd` rather than fabricating a number, by design, not a bug.
 
-What the pipeline *does* show, in local currency (meaningful only within a market, not summed across them):
+**Caveat that matters**: this figure is an *estimate*, not an exact conversion, and the pipeline says so explicitly rather than hiding it. The free tier of exchangerate-api.com doesn't include historical rate lookups, so every conversion here uses the *latest* available rate (as of the fetch), not the rate that actually applied on each payment's own date. Every affected row carries `rate_is_estimated = true` / `rate_source = 'latest_fallback'` in `raw.fx_rates`, and that flag is threaded all the way through to `fct_paid_post_call.used_estimated_fx_rate` and `agg_daily_summary.value_recovered_usd_is_estimated` — the dashboard surfaces it as a visible `*` next to the number, not a footnote. Over a 4-day window the drift this introduces is small, but it would compound on a real production window and should be revisited (a paid plan, or a different provider with historical support) before this number is used for anything with money attached to it.
 
-| Market | Currency | Paid dispositions | Value recovered (local) |
-|---|---|---|---|
-| Kenya | KES | 3,509 | 962,312 |
-| Uganda | UGX | 736 | 5,435,466 |
-| Tanzania | TZS | 1,096 | 7,767,360 |
-| Nigeria | NGN | 560 | 3,960,567 |
+| Market | Currency | Paid dispositions | Value recovered (local) | Value recovered (USD, estimated) |
+|---|---|---|---|---|
+| Kenya | KES | 3,509 | 962,312 | $6,575.58 |
+| Uganda | UGX | 736 | 5,435,466 | $1,541.47 |
+| Tanzania | TZS | 1,096 | 7,767,360 | $2,969.64 |
+| Nigeria | NGN | 560 | 3,960,567 | $2,920.35 |
 
 ### Metric 4 — Top drivers of inbound calls
 

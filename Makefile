@@ -10,7 +10,7 @@ ingest:
 
 # Fetch/cache any missing daily FX rates needed by the payments in raw.
 fx:
-	python ingestion/fetch_fx_rates.py
+	python ingestion/api/fx/main.py
 
 # Run the full dbt DAG (seeds + staging + intermediate + marts) with tests.
 transform:

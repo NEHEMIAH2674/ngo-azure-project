@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # ingestion/
 
-import fetch_fx_rates as fx
+from api.fx import hook as fx  # noqa: E402
 
 
 class _FakeResponse:
@@ -19,6 +19,12 @@ class _FakeResponse:
         return self._json_body
 
 
+def _hook():
+    # api_key passed explicitly so these tests don't depend on the
+    # environment having (or not having) EXCHANGE_RATE_API_KEY set.
+    return fx.ExchangeRateApiHook(api_key="test-key")
+
+
 def test_get_retries_on_5xx_then_succeeds(monkeypatch):
     calls = {"n": 0}
 
@@ -29,7 +35,7 @@ def test_get_retries_on_5xx_then_succeeds(monkeypatch):
         return _FakeResponse(200, {"result": "success", "conversion_rates": {"KES": 129.5}})
 
     monkeypatch.setattr(fx.requests, "get", fake_get)
-    body = fx._get("http://example.invalid")
+    body = _hook()._get("http://example.invalid")
 
     assert calls["n"] == 3
     assert body["conversion_rates"]["KES"] == 129.5
@@ -45,7 +51,7 @@ def test_get_raises_permanent_error_on_bad_key_without_retrying(monkeypatch):
     monkeypatch.setattr(fx.requests, "get", fake_get)
 
     with pytest.raises(fx.FxPermanentError):
-        fx._get("http://example.invalid")
+        _hook()._get("http://example.invalid")
 
     assert calls["n"] == 1  # no retrying a bad key
 
@@ -57,4 +63,17 @@ def test_get_raises_plan_upgrade_required_distinctly(monkeypatch):
     monkeypatch.setattr(fx.requests, "get", fake_get)
 
     with pytest.raises(fx.FxPlanUpgradeRequired):
-        fx._get("http://example.invalid")
+        _hook()._get("http://example.invalid")
+
+
+def test_resolve_api_key_rejects_missing_or_placeholder(monkeypatch):
+    monkeypatch.delenv("EXCHANGE_RATE_API_KEY", raising=False)
+    with pytest.raises(fx.FxPermanentError):
+        fx.ExchangeRateApiHook()
+
+    monkeypatch.setenv("EXCHANGE_RATE_API_KEY", "changeme")
+    with pytest.raises(fx.FxPermanentError):
+        fx.ExchangeRateApiHook()
+
+    monkeypatch.setenv("EXCHANGE_RATE_API_KEY", "a-real-looking-key")
+    assert fx.ExchangeRateApiHook().api_key == "a-real-looking-key"

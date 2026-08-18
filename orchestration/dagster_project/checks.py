@@ -63,7 +63,7 @@ def _make_null_key_check(asset_name: str, key_column: str) -> dg.AssetChecksDefi
         "Every (date, currency) pair present in raw.payments should have a "
         "matching fx_rates row. WARN (not fail) since this is expected to be "
         "unmet until a real EXCHANGE_RATE_API_KEY is configured -- see "
-        "ingestion/fetch_fx_rates.py."
+        "ingestion/api/fx/."
     ),
 )
 def fx_rates_covers_all_payment_dates() -> dg.AssetCheckResult:

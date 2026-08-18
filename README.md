@@ -10,7 +10,7 @@ See **[WRITEUP.md](WRITEUP.md)** for the four metrics' answers, data gaps found,
 data/raw/*.csv ──┐
                  ├──▶ ingestion/load_csv_to_bq.py ──▶ BigQuery raw.*  (append-only landing, byte-for-byte)
 exchangerate     │
--api.com    ─────┘──▶ ingestion/fetch_fx_rates.py ──▶ BigQuery raw.fx_rates
+-api.com    ─────┘──▶ ingestion/api/fx/ (hook → operator) ──▶ BigQuery raw.fx_rates
 
 BigQuery raw.* ──▶ dbt staging ──▶ dbt intermediate ──▶ dbt marts ──▶ (dashboard, not yet built)
 
@@ -83,7 +83,7 @@ Drop a new day's 4 CSVs into `data/raw/` (same filenames) and re-run `make inges
 ## Running tests
 
 ```bash
-pytest ingestion/tests -v     # 7 unit tests: parsing, rejects, idempotency key stability
+pytest ingestion/tests -v     # 8 unit tests: parsing, rejects, idempotency key stability, FX hook retry/auth
 cd dbt && dbt test             # 33 data tests: uniqueness, not-null, referential integrity,
                                 # + 2 singular tests protecting Metric 3 from double-counting
 ```

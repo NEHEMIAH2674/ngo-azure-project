@@ -3,9 +3,9 @@
 Two families of assets, wired into one graph:
 
 1. Raw ingestion assets (one per CSV source + fx_rates) -- thin Dagster
-   wrappers around the existing ingestion/ scripts. No logic is duplicated
-   here; each asset just calls the same load_source()/run() functions the
-   CLI (`make ingest`, `make fx`) uses, so there is exactly one
+   wrappers around the existing ingestion/ code. No logic is duplicated
+   here; each asset just calls the same load_source() function / FxRates
+   Operator the CLI (`make ingest`, `make fx`) uses, so there is exactly one
    implementation of "how a source gets loaded" regardless of whether it's
    invoked by hand or by Dagster.
 
@@ -27,8 +27,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "ingestion"))
 
 import dagster as dg
-import fetch_fx_rates
 import load_csv_to_bq
+from api.fx.fx_operator import FxRatesOperator
+from api.fx.hook import ExchangeRateApiHook, FxPermanentError
 from common import get_bigquery_client
 from dagster_dbt import DagsterDbtTranslator, DbtCliResource, dbt_assets
 from sources import SOURCES
@@ -78,7 +79,12 @@ raw_ingestion_assets = [_make_raw_ingestion_asset(s) for s in SOURCES]
     description="Daily USD exchange rates cached from exchangerate-api.com, keyed on (rate_date, currency).",
 )
 def fx_rates_asset(context: dg.AssetExecutionContext) -> dg.MaterializeResult:
-    result = fetch_fx_rates.run()
+    try:
+        hook = ExchangeRateApiHook()
+    except FxPermanentError as exc:
+        context.log.error("fx_rates: %s", exc)
+        hook = None
+    result = FxRatesOperator(hook).execute()
     context.log.info("fx_rates: %s", result)
     return dg.MaterializeResult(metadata=result)
 

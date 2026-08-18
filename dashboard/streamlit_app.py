@@ -191,6 +191,7 @@ paid_count = int(daily_f["paid_post_call_count"].sum())
 paid_rate = paid_count / total_dispositions if total_dispositions else None
 
 value_usd = daily_f["value_recovered_usd"].sum(min_count=1)
+value_usd_estimated = bool(daily_f["value_recovered_usd_is_estimated"].fillna(False).any())
 inbound_total = int(daily_f["inbound_call_count"].sum())
 still_in_window = int(daily_f["still_in_window_count"].sum())
 
@@ -198,12 +199,25 @@ k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Outbound calls", f"{total_outbound:,}")
 k2.metric("Coding rate", f"{coding_rate:.1%}" if coding_rate is not None else "—")
 k3.metric("Paid post call", f"{paid_rate:.1%}" if paid_rate is not None else "—")
-k4.metric(
-    "Value recovered (USD)",
-    f"${value_usd:,.0f}" if pd.notna(value_usd) else "Unavailable",
-    help="Requires a live exchangerate-api.com key (EXCHANGE_RATE_API_KEY). "
-    "Shows local-currency figures per market in the Metric 2 & 3 tab instead.",
-)
+if pd.notna(value_usd):
+    k4.metric(
+        "Value recovered (USD)",
+        f"${value_usd:,.0f}" + (" *" if value_usd_estimated else ""),
+        help=(
+            "* Converted using the latest available rate, not the historical rate for each "
+            "payment's actual date — the configured exchangerate-api.com plan doesn't include "
+            "historical lookups. See WRITEUP.md Metric 3."
+            if value_usd_estimated
+            else "Converted using each payment's own historical-date exchange rate."
+        ),
+    )
+else:
+    k4.metric(
+        "Value recovered (USD)",
+        "Unavailable",
+        help="Requires a live exchangerate-api.com key (EXCHANGE_RATE_API_KEY). "
+        "Shows local-currency figures per market in the Metric 2 & 3 tab instead.",
+    )
 k5.metric("Inbound calls", f"{inbound_total:,}")
 
 if still_in_window > 0:
@@ -298,6 +312,8 @@ with tab2:
             with_contract=("contract_id", "count"),
             paid_post_call=("is_paid_post_call", "sum"),
             value_recovered_local=("attributed_payment_amount_local", "sum"),
+            value_recovered_usd=("attributed_payment_amount_usd", "sum"),
+            value_recovered_usd_is_estimated=("used_estimated_fx_rate", "any"),
             currency_code=("currency_code", "first"),
         )
         .rename(columns={"country_name": "market"})
@@ -342,14 +358,27 @@ with tab2:
             use_container_width=True,
         )
 
-    st.subheader("Value recovered, by market (local currency)")
+    st.subheader("Value recovered, by market")
+    any_estimated = bool(by_market_paid["value_recovered_usd_is_estimated"].fillna(False).any())
     st.caption(
-        "Shown per market in its own currency — summing across KES/UGX/TZS/NGN on one axis would imply "
-        "comparability that doesn't exist. USD conversion (Metric 3) needs a live FX key; see the KPI row above."
+        "Local-currency figure shown first — summing KES/UGX/TZS/NGN on one axis would imply "
+        "comparability that doesn't exist. USD alongside it for cross-market comparison"
+        + (
+            " — marked * where converted at the latest available rate rather than each payment's own "
+            "historical-date rate (the configured exchangerate-api.com plan has no historical lookup); "
+            "see WRITEUP.md §3."
+            if any_estimated
+            else "."
+        )
     )
     money_cols = st.columns(len(by_market_paid)) if len(by_market_paid) else []
     for col, (_, row) in zip(money_cols, by_market_paid.sort_values("market").iterrows()):
+        star = " *" if row["value_recovered_usd_is_estimated"] else ""
+        usd_line = (
+            f"${row['value_recovered_usd']:,.0f}{star}" if pd.notna(row["value_recovered_usd"]) else "USD unavailable"
+        )
         col.metric(f"{row['market']} ({row['currency_code']})", f"{row['value_recovered_local']:,.0f}")
+        col.caption(usd_line)
 
 # --------------------------------------------------------------------------
 # Tab 3 -- Inbound drivers (drill-down)

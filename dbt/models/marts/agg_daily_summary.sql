@@ -30,6 +30,12 @@ paid as (
         count(*) as total_dispositions,
         countif(is_paid_post_call) as paid_post_call_count,
         sum(attributed_payment_amount_usd) as value_recovered_usd,
+        -- Surfaced so a consumer never mistakes an estimated conversion for
+        -- an exact one: true whenever any payment in this (day, market) used
+        -- the "latest rate" fallback rather than that day's historical
+        -- rate (see ingestion/api/fx/ -- the exchangerate-api.com free tier
+        -- doesn't include historical lookups).
+        logical_or(coalesce(used_estimated_fx_rate, false)) as value_recovered_usd_is_estimated,
         countif(not is_window_closed) as still_in_window_count
     from {{ ref('fct_paid_post_call') }}
     group by all
@@ -53,6 +59,7 @@ coding_paid as (
         paid.total_dispositions,
         paid.paid_post_call_count,
         paid.value_recovered_usd,
+        paid.value_recovered_usd_is_estimated,
         paid.still_in_window_count
     from coding
     full outer join paid
@@ -69,6 +76,7 @@ select
     coding_paid.paid_post_call_count,
     safe_divide(coding_paid.paid_post_call_count, coding_paid.total_dispositions) as paid_post_call_rate,
     coding_paid.value_recovered_usd,
+    coding_paid.value_recovered_usd_is_estimated,
     coding_paid.still_in_window_count,
     inbound.inbound_call_count
 from coding_paid

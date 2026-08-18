@@ -18,4 +18,4 @@ sources:
       - name: agent_mapping
         description: One row per physical CSV row from every distinct Atlas Ameyo Mapping.csv ever loaded.
       - name: fx_rates
-        description: Daily USD exchange rates fetched by ingestion/fetch_fx_rates.py, keyed on (rate_date, currency).
+        description: Daily USD exchange rates fetched by ingestion/api/fx/, keyed on (rate_date, currency).

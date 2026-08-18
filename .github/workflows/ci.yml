@@ -60,10 +60,10 @@ jobs:
 
       # No EXCHANGE_RATE_API_KEY secret is configured for CI on purpose:
       # this exercises exactly the failure path in
-      # ingestion/fetch_fx_rates.py (missing key -> log + continue,
-      # never crash) that the brief asks us to demonstrate handling.
+      # ingestion/api/fx/ (missing key -> log + continue, never crash)
+      # that the brief asks us to demonstrate handling.
       - name: Refresh FX rates (expected to no-op without a key in CI)
-        run: python ingestion/fetch_fx_rates.py
+        run: python ingestion/api/fx/main.py
 
       - name: dbt build (seed + run + test)
         working-directory: dbt
