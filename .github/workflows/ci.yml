@@ -33,7 +33,8 @@ jobs:
       - name: Lint (ruff)
         run: |
           pip install ruff
-          ruff check ingestion orchestration dashboard
+          # dashboard/ is a not-yet-built bonus; add it here once it exists.
+          ruff check ingestion orchestration
 
       - name: Unit tests (ingestion)
         run: pytest ingestion/tests -v
