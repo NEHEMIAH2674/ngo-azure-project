@@ -248,7 +248,7 @@ with tab1:
     with left:
         st.plotly_chart(
             market_bar(by_market, "coding_rate", "Coding rate by market", "% of outbound calls coded", as_pct=True),
-            use_container_width=True,
+            width="stretch",
         )
     with right:
         st.caption(
@@ -266,7 +266,7 @@ with tab1:
                 ),
             },
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.subheader("By agent and campaign")
@@ -296,7 +296,7 @@ with tab1:
             ),
         },
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         height=350,
     )
 
@@ -333,7 +333,7 @@ with tab2:
                 by_market_paid, "paid_post_call_rate", "Paid post call by market",
                 "% of dispositions-with-a-contract paid within 3 days", as_pct=True,
             ),
-            use_container_width=True,
+            width="stretch",
         )
     with right:
         st.caption(
@@ -355,7 +355,7 @@ with tab2:
                 ),
             },
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.subheader("Value recovered, by market")
@@ -395,7 +395,7 @@ with tab3:
             level_one_agg, "level_one", "call_count",
             "What are customers calling about? (level 1)", "Inbound calls",
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     if not level_one_agg.empty:
@@ -410,7 +410,7 @@ with tab3:
         if not l2_df.empty:
             st.plotly_chart(
                 magnitude_bar(l2_df, "level_two", "call_count", f'"{chosen_l1}" → level 2', "Inbound calls"),
-                use_container_width=True,
+                width="stretch",
             )
 
             l2_options = l2_df.sort_values("call_count", ascending=False)["level_two"]
@@ -424,5 +424,5 @@ with tab3:
                 l3_title = f'"{chosen_l1}" → "{chosen_l2}" → level 3'
                 st.plotly_chart(
                     magnitude_bar(l3_df, "level_three", "call_count", l3_title, "Inbound calls"),
-                    use_container_width=True,
+                    width="stretch",
                 )
