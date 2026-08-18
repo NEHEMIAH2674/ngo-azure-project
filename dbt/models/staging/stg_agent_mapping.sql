@@ -27,14 +27,18 @@ with source as (
 
 typed as (
     select
-        nullif(trim(contact_centre), '') as country_name,
-        nullif(trim(ameyo_user_id), '') as ameyo_user_id,
-        nullif(trim(team), '') as team,
-        nullif(trim(atlas_user_name), '') as atlas_user_name,
+        {{ clean_string('contact_centre') }} as country_name,
+        {{ clean_string('ameyo_user_id') }} as ameyo_user_id,
+        {{ clean_string('team') }} as team,
+        {{ clean_string('atlas_user_name') }} as atlas_user_name,
         _source_file,
         _ingested_at
     from source
-    where nullif(trim(ameyo_user_id), '') is not null
+    -- Can't reference the `ameyo_user_id` alias above in this WHERE clause
+    -- (WHERE evaluates before SELECT in the same query), so the same
+    -- cleanup is necessarily re-expressed here rather than reused --
+    -- SQL scoping, not sloppy duplication.
+    where {{ clean_string('ameyo_user_id') }} is not null
 ),
 
 flagged as (

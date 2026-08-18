@@ -21,13 +21,13 @@ with source as (
 typed as (
     select
         ch_call_id as call_id,
-        nullif(trim(udh_user_id), '') as agent_ameyo_user_id,
-        nullif(trim(campaign_name), '') as campaign_name,
-        nullif(trim(ch_call_type), '') as call_dial_type,
-        nullif(trim(ch_system_disposition), '') as system_disposition,
+        {{ clean_string('udh_user_id') }} as agent_ameyo_user_id,
+        {{ clean_string('campaign_name') }} as campaign_name,
+        {{ clean_string('ch_call_type') }} as call_dial_type,
+        {{ clean_string('ch_system_disposition') }} as system_disposition,
         safe_cast(ch_contact_center_id as int64) as ameyo_contact_center_id,
         safe_cast(total_talk_time as float64) as total_talk_time_ms,
-        nullif(trim(udh_notes), '') as notes_raw,
+        {{ clean_string('udh_notes') }} as notes_raw,
         safe_cast(ch_date_added as datetime) as call_placed_at_local,
         _source_file,
         _ingested_at

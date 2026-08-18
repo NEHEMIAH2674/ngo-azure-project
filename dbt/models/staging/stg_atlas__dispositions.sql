@@ -19,11 +19,11 @@ typed as (
         safe_cast(customer_id as int64) as customer_id,
         safe_cast(contract_id as int64) as contract_id,
         safe_cast(created_timestamp_utc as timestamp) as disposed_at_utc,
-        nullif(trim(createdby), '') as created_by,
-        nullif(trim(call_type), '') as call_type,
-        nullif(trim(level_one), '') as level_one,
-        nullif(trim(level_two), '') as level_two,
-        nullif(trim(level_three), '') as level_three,
+        {{ clean_string('createdby') }} as created_by,
+        {{ clean_string('call_type') }} as call_type,
+        {{ clean_string('level_one') }} as level_one,
+        {{ clean_string('level_two') }} as level_two,
+        {{ clean_string('level_three') }} as level_three,
         _source_file,
         _ingested_at
     from source
