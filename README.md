@@ -102,4 +102,8 @@ Every push runs `.github/workflows/ci.yml`: ruff lint, `pytest`, then a full `db
 
 ## Visualization (bonus)
 
-Not included in this submission. The marts (`dlight_analytics_marts.*`) are dashboard-ready as-is (documented grain, pre-aggregated `agg_daily_summary`) — a natural next step would be Looker Studio directly on top of them, or a Streamlit app reading the same tables.
+```bash
+make dashboard   # streamlit run dashboard/streamlit_app.py — opens at localhost:8501
+```
+
+A Streamlit app reading only `dlight_analytics_marts.*` (never raw/staging). Sidebar filters for market and day; a KPI row with the provisional-window flag surfaced explicitly (turns into a warning banner the moment any disposition's 3-day payment window is still open); one tab per metric — Metric 1's coding rate by market plus the full agent/campaign coaching detail table, Metric 2's paid-post-call rate (denominator = dispositions with a contract_id, matching WRITEUP.md's headline table) alongside Metric 3's per-market local-currency value recovered, and Metric 4's inbound-driver drill-down (level 1 → 2 → 3, per the brief's ask). Markets get a fixed color across every chart in every tab — same market, same color, everywhere — and Metric 4 uses a single sequential hue rather than a categorical palette, since it's a magnitude comparison of reasons, not a set of persistent identities.
