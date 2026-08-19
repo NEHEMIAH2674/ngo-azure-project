@@ -31,6 +31,8 @@ Dagster wires all of the above into one graph: raw ingestion → dbt's staging/
 intermediate/marts DAG, with asset checks and a daily schedule.
 ```
 
+![Data infrastructure flow diagram](docs/screenshots/miro/data-infrastructure-flow.png)
+
 | Folder | What's there |
 |---|---|
 | `ingestion/` | The Python loader and the exchangerate-api.com integration (`api/fx/hook.py`, `fx_operator.py`, `main.py`) |
@@ -84,15 +86,15 @@ Or run the whole thing as one orchestrated pipeline (recommended — this is wha
 make dagster     # opens the Dagster UI at localhost:3000 — click "Materialize all"
 ```
 
-**What you should see**: two dataset groups in BigQuery — `dlight_raw` (four landing tables plus `fx_rates` and `_load_manifest`, all untouched CSV data) and `dlight_analytics_{staging,intermediate,marts}` (12 dbt models). Both `dbt build` and the Dagster run finish with **46 out of 46 steps passing** — 1 seed, 7 tables, 5 views, 33 tests.
+**What you should see**: two dataset groups in BigQuery — `dev_dlight_raw` (four landing tables plus `fx_rates` and `_load_manifest`, all untouched CSV data) and `dev_dlight_analytics_{staging,intermediate,marts}` (12 dbt models). Both `dbt build` and the Dagster run finish with **46 out of 46 steps passing** — 1 seed, 7 tables, 5 views, 33 tests. (There's also a `prod` copy under the plain, unmarked `dlight_raw`/`dlight_analytics_*` names — see Environments below for why the naming is split this way.)
 
 ### Deleting everything and rebuilding from scratch
 
 ```bash
-bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_raw
-bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_analytics_staging
-bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_analytics_intermediate
-bq rm -r -f --dataset $GCP_PROJECT_ID:dlight_analytics_marts
+bq rm -r -f --dataset $GCP_PROJECT_ID:dev_dlight_raw
+bq rm -r -f --dataset $GCP_PROJECT_ID:dev_dlight_analytics_staging
+bq rm -r -f --dataset $GCP_PROJECT_ID:dev_dlight_analytics_intermediate
+bq rm -r -f --dataset $GCP_PROJECT_ID:dev_dlight_analytics_marts
 make ingest && make fx && make transform
 ```
 
@@ -114,7 +116,14 @@ cd dbt && dbt test              # 33 data tests: uniqueness, not-null, referenti
 ruff check ingestion orchestration dashboard   # Python
 cd dbt && sqlfluff lint models                  # SQL, via the dbt templater (understands our
                                                  # actual macros and ref()/source() calls)
+
+# Docs (generated, not hand-written)
+cd dbt && dbt docs generate && dbt docs serve   # opens at localhost:8080
 ```
+
+![dbt docs lineage graph](docs/screenshots/dbt-docs/agg_daily_summary.png)
+
+*The dependency chain dbt itself resolved for `agg_daily_summary` — every model's grain and column docs shown here come from the `.yml` files, not just SQL comments.*
 
 ## Orchestration (bonus)
 
@@ -128,7 +137,19 @@ The asset graph is four raw-ingestion assets plus `fx_rates`, feeding the full d
 
 `make dagster` runs `orchestration/run_dagster_dev.sh` rather than calling `dagster dev` directly: on Windows, `dagster dev`'s webserver subprocess occasionally exits immediately with `STATUS_DLL_INIT_FAILED` — a transient OS-level subprocess-spawn hiccup, confirmed non-deterministic (the identical command succeeds on retry with no code or config change). The wrapper polls the real webserver health endpoint and retries up to 3 times if it dies before coming up; if it fails 3 times in a row, that's no longer the known flake and is worth investigating for real.
 
-`make dagster` runs `orchestration/run_dagster_dev.sh` rather than calling `dagster dev` directly: on Windows, `dagster dev`'s webserver subprocess occasionally exits immediately with `STATUS_DLL_INIT_FAILED` — a transient OS-level subprocess-spawn hiccup, confirmed non-deterministic (the identical command succeeds on retry with no code or config change). The wrapper polls the real webserver health endpoint and retries up to 3 times if it dies before coming up; if it fails 3 times in a row, that's no longer the known flake and is worth investigating for real.
+A second, separate Windows issue turned up under load: the default multiprocess executor spawns a fresh subprocess per step, and since the 4 raw ingestion assets have no interdependencies, they all launch at once — each one re-importing this whole module, which re-triggers dbt's dev-mode manifest preparation (`dbt deps` + `dbt parse`) as a side effect. Concurrent subprocesses raced on the same `dbt_packages/` directory and failed with no visible reason (Windows has compute-log capture disabled here, so the real exception only showed up in the daemon's own console log, not the UI). Fixed by pinning `daily_pipeline_job` to a serial executor (`max_concurrent=1`, in `definitions.py`) — this pipeline's data volume doesn't need real per-step parallelism, so trading ~3 minutes for ~18 is the right call over working around dagster-dbt's dev-mode preparation.
+
+![Dagster asset graph](docs/screenshots/dagster/asset-graph.png)
+
+*The full asset graph — 4 raw sources + `fx_rates` feeding the dbt-generated staging → intermediate → marts DAG — alongside the job header confirming the latest run succeeded and the daily schedule is on. (A second copy with the browser URL bar visible, `asset-graph-with-url.png`, is in the same folder for anyone who wants proof this is a live local instance rather than a staged image.)*
+
+![Dagster schedule](docs/screenshots/dagster/schedule.png)
+
+*`daily_pipeline_schedule`, toggled on, `06:00 AM UTC`.*
+
+![Dagster green run](docs/screenshots/dagster/green-run.png)
+
+*A full pipeline run, post-fix: all 17 steps succeeded in 0:17:43.*
 
 ## CI/CD
 
@@ -148,6 +169,10 @@ Two dbt targets, two dataset groups, same GCP project — never sharing tables:
 | `dev` (default) | `dev_dlight_raw`, `dev_dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally — model, run `dbt build`/`dbt run`, and validate here before pushing | On demand — see "Deleting everything and rebuilding from scratch" above |
 | `prod` | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, once `test` passes |
 
+![BigQuery dataset separation](docs/screenshots/bigquery/dataset-separation.png)
+
+*Both environments in one Explorer view — `dev_dlight_*` and the plain `dlight_*` side by side, nothing else in the project mixed in.*
+
 The plain, unmarked name is **prod**, not dev — the opposite of how this looked earlier on. That's deliberate: the ready-for-use dataset a BI tool or analyst would actually query should have the name with no caveat attached, and the one still being iterated on should carry the label. The corollary matters more than the naming itself: every default in this repo (`ingestion/common.py`'s `get_raw_dataset()`/`get_analytics_dataset()`, `dbt/profiles.yml`'s `dev` target) falls back to the `dev_` prefixed name when an env var is simply unset — so forgetting to configure something lands you in dev, never silently in prod. `deploy_prod` is the one and only place that explicitly overrides both to reach the plain name.
 
 `prod` is deliberately CI/CD-only beyond that: `deploy_prod` is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after lint and unit tests are green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
@@ -163,3 +188,15 @@ make dashboard   # opens at localhost:8501
 ```
 
 A Streamlit app reading only from the marts. Sidebar filters for market and day; a KPI row that turns into a visible warning the moment any payment is still inside its 3-day attribution window; one tab per metric, including the full agent/campaign coaching table for Metric 1 and a level-1-to-3 drill-down for Metric 4. Every market keeps the same color on every chart, in every tab.
+
+![Metric 1: coding rate](docs/screenshots/dashboard/metric-1-coding-rate.png)
+
+*Coding rate by market, plus the full agent/campaign coaching table the team asked for.*
+
+![Metrics 2 & 3: paid post call and value recovered](docs/screenshots/dashboard/metric-2-3-paid-post-call.png)
+
+*Paid-post-call rate by market, and value recovered per market in local currency — every USD figure carries the `*` estimated-FX marker.*
+
+![Metric 4: inbound call drivers](docs/screenshots/dashboard/metric-4-inbound-drivers.png)
+
+*The level-1 → level-2 → level-3 drill-down, mid-drill: Enquiry → Product Usage/Education.*
