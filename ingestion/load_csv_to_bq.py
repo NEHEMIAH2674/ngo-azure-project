@@ -63,7 +63,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from common import fq_table, get_analytics_dataset, get_bigquery_client, get_logger, get_project_id, get_raw_dataset
+from common import fq_table, get_bigquery_client, get_logger, get_project_id, get_raw_dataset
 from google.cloud import bigquery
 from sources import SOURCES, Source
 
@@ -89,9 +89,15 @@ def full_schema(source: Source) -> list[bigquery.SchemaField]:
 
 
 def ensure_infra(client: bigquery.Client) -> None:
+    # Only the raw dataset -- ingestion never writes to anything under
+    # get_analytics_dataset(). That used to also get created here, which
+    # meant every environment (dev/ci/prod) grew a permanently-empty bare
+    # dlight_analytics* dataset on every ingestion run, a clutter artifact
+    # with nothing in it. dbt creates whatever *_staging/_intermediate/
+    # _marts datasets it actually writes to on its own -- it doesn't need
+    # this script to pre-create anything on its behalf.
     project = get_project_id()
-    for dataset in (get_raw_dataset(), get_analytics_dataset()):
-        client.create_dataset(bigquery.Dataset(f"{project}.{dataset}"), exists_ok=True)
+    client.create_dataset(bigquery.Dataset(f"{project}.{get_raw_dataset()}"), exists_ok=True)
 
     for source in SOURCES:
         table = bigquery.Table(fq_table(get_raw_dataset(), source.name), schema=full_schema(source))
