@@ -19,7 +19,7 @@ vars:
 seeds:
   dlight_callcentre_analytics:
     # No override here defaults to the bare target dataset (dlight_analytics
-    # / dlight_analytics_ci) -- a 5th dataset per environment that exists
+    # / dlight_analytics_prod) -- a 5th dataset per environment that exists
     # only because of a missing config line, not a real layer. The seed is
     # a staging-layer concern (only staging models reference it), so it
     # belongs in the same dataset as the rest of staging.

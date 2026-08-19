@@ -1,10 +1,12 @@
 # Committed on purpose: contains no secrets. Auth is either ambient gcloud
-# ADC + service-account impersonation (dev, matching ingestion/common.py) or
-# a CI-supplied service-account keyfile (ci target) -- see .env.example.
+# ADC + service-account impersonation (dev) or Workload Identity Federation
+# (prod, from CI/CD only) -- see .env.example.
 dlight_callcentre_analytics:
   target: "{{ env_var('DBT_TARGET', 'dev') }}"
   outputs:
     dev:
+      # Local iteration only. Model, run dbt build/dbt run, and validate
+      # here before pushing -- this target is never touched by CI/CD.
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID') }}"
@@ -14,31 +16,23 @@ dlight_callcentre_analytics:
       threads: 4
       priority: interactive
       job_execution_timeout_seconds: 300
-    ci:
-      # google-github-actions/auth@v2 (Workload Identity Federation) writes
-      # an "external account" credential config to GOOGLE_APPLICATION_
-      # CREDENTIALS, not a legacy service-account JSON key -- `oauth`
-      # (ADC-style loading via google.auth.default()) understands both;
-      # `service-account`/`keyfile` only understands the legacy kind.
-      type: bigquery
-      method: oauth
-      project: "{{ env_var('GCP_PROJECT_ID') }}"
-      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics_ci') }}"
-      location: "{{ env_var('BQ_LOCATION', 'US') }}"
-      threads: 4
-      priority: interactive
-      job_execution_timeout_seconds: 300
     prod:
       # Deliberately CI/CD-only: this target is only ever invoked from the
       # deploy_prod job in .github/workflows/ci.yml (gated to pushes on
-      # main, after tests pass), the same WIF auth as ci above -- never
-      # from a developer's machine. There's no separate IAM boundary
-      # enforcing that today (this case study's single service account is
-      # shared across dev/ci/prod; a real rollout would give prod its own
-      # narrowly-scoped SA and grant analysts read-only access to just the
-      # prod marts dataset), so the real protection right now is that
-      # nothing in this repo or its docs tells a human to set
-      # DBT_TARGET=prod locally -- see README's Environments section.
+      # main, after lint + unit tests pass). Nothing in this repo or its
+      # docs tells a human to set DBT_TARGET=prod locally -- see README's
+      # Environments section. Auth is Workload Identity Federation:
+      # google-github-actions/auth@v2 writes an "external account"
+      # credential config to GOOGLE_APPLICATION_CREDENTIALS, not a legacy
+      # service-account JSON key -- `oauth` (ADC-style loading via
+      # google.auth.default()) understands both; `service-account`/
+      # `keyfile` only understands the legacy kind.
+      #
+      # Known limit: dev and prod currently share one service account
+      # (scoped to this case study only). A real rollout would give prod
+      # its own, more narrowly-scoped SA and grant analysts read-only
+      # access to just the prod marts dataset -- enforcing the boundary at
+      # the IAM layer too, not only by which workflow runs.
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID') }}"

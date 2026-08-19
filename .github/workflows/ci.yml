@@ -9,14 +9,13 @@ permissions:
   contents: read
   id-token: write # required for keyless GCP auth via Workload Identity Federation
 
-env:
-  GCP_PROJECT_ID: npd-01
-  BQ_RAW_DATASET: dlight_raw_ci
-  BQ_ANALYTICS_DATASET: dlight_analytics_ci
-  BQ_LOCATION: US
-  DBT_TARGET: ci
-
 jobs:
+  # Fast, and deliberately touches no warehouse at all: runs on every push
+  # and every PR, on any branch, with no GCP auth needed. Only 2 dataset
+  # groups exist in this project -- dev (validated locally, by hand,
+  # running dbt build/dbt run before you push) and prod (updated by
+  # deploy_prod below). There's no third CI-only copy of the data for this
+  # job to build against, so it checks what it can check without one.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -35,6 +34,38 @@ jobs:
 
       - name: Unit tests (ingestion)
         run: pytest ingestion/tests -v
+
+  # Deliberately a separate job, not folded into test above: `needs: test`
+  # means this only starts once lint + unit tests have already passed, and
+  # `if` restricts it to pushes on main (never a PR, never a feature
+  # branch). This is what makes "prod is written to only by CI/CD, and only
+  # after review" a real, enforced fact rather than a comment -- and it's
+  # also where the actual warehouse validation happens (sqlfluff's dbt
+  # templater, then a full dbt build), since there's no separate CI
+  # dataset to run that against earlier. The trade-off, stated plainly: a
+  # model that fails to build is only caught here, at merge time, not on
+  # the PR itself -- acceptable for this project's scale, and the reason
+  # `dbt build` locally against dev before pushing still matters.
+  deploy_prod:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: npd-01
+      BQ_RAW_DATASET: dlight_raw_prod
+      BQ_ANALYTICS_DATASET: dlight_analytics_prod
+      BQ_LOCATION: US
+      DBT_TARGET: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       # -------------------------------------------------------------
       # Auth: Workload Identity Federation, not a downloadable JSON
@@ -63,80 +94,22 @@ jobs:
       # build` does (ref()/source() resolution, our clean_string() macro,
       # etc.), so it needs the same auth + deps as the build step below --
       # placed after both rather than lint SQL "for free" before auth is
-      # ready.
+      # ready. Compiling is read-only; it doesn't touch prod data.
       - name: Lint SQL (sqlfluff)
         working-directory: dbt
         env:
           DBT_PROFILES_DIR: .
         run: sqlfluff lint models
 
-      - name: Ingest fixture data into CI-isolated BigQuery datasets
-        run: python ingestion/load_csv_to_bq.py
-
-      # No EXCHANGE_RATE_API_KEY secret is configured for CI on purpose:
-      # this exercises exactly the failure path in
-      # ingestion/api/fx/ (missing key -> log + continue, never crash)
-      # that the brief asks us to demonstrate handling.
-      - name: Refresh FX rates (expected to no-op without a key in CI)
-        run: python ingestion/api/fx/main.py
-
-      - name: dbt build (seed + run + test)
-        working-directory: dbt
-        env:
-          DBT_PROFILES_DIR: .
-        run: dbt build
-
-  # Deliberately a separate job, not a step in `test` above: `needs: test`
-  # means this only starts once every lint/unit-test/dbt-build step above
-  # has already passed, and the `if` restricts it to pushes on main (never
-  # a PR, never a feature branch). This is what makes "prod is written to
-  # only by CI/CD" a real, enforced fact rather than a comment -- the prod
-  # datasets below are created and populated by this job alone, never by a
-  # human running dbt locally with DBT_TARGET=prod.
-  deploy_prod:
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    env:
-      GCP_PROJECT_ID: npd-01
-      BQ_RAW_DATASET: dlight_raw_prod
-      BQ_ANALYTICS_DATASET: dlight_analytics_prod
-      BQ_LOCATION: US
-      DBT_TARGET: prod
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/777714686286/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-          service_account: dlight-case-study@npd-01.iam.gserviceaccount.com
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: dbt deps
-        working-directory: dbt
-        env:
-          DBT_PROFILES_DIR: .
-        run: dbt deps
-
       - name: Ingest into prod raw dataset
         run: python ingestion/load_csv_to_bq.py
 
-      # No EXCHANGE_RATE_API_KEY secret is configured in this repo yet (same
-      # as the test job above), so this resolves to an empty string and
-      # exercises the same graceful missing-key no-op rather than failing
-      # the deploy. Add the secret in repo settings to make this a real
-      # fetch once a paid/persistent key exists.
+      # No EXCHANGE_RATE_API_KEY secret is configured in this repo yet, so
+      # this resolves to an empty string and exercises the graceful
+      # missing-key no-op (log + continue) rather than failing the deploy
+      # -- exactly the failure path ingestion/api/fx/ is meant to handle.
+      # Add the secret in repo settings to make this a real fetch once a
+      # paid/persistent key exists.
       - name: Refresh FX rates in prod
         env:
           EXCHANGE_RATE_API_KEY: ${{ secrets.EXCHANGE_RATE_API_KEY }}

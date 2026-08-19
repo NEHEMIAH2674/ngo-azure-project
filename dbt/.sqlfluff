@@ -9,8 +9,9 @@ exclude_rules = structure.column_order
 project_dir = .
 profiles_dir = .
 # No explicit target here: profiles.yml resolves it from DBT_TARGET (default
-# "dev"), so local runs and CI (which sets DBT_TARGET=ci) each lint against
-# their own target automatically, the same way `dbt build` already does.
+# "dev"), so local runs and the deploy_prod CI job (which sets
+# DBT_TARGET=prod) each lint against their own target automatically, the
+# same way `dbt build` already does.
 
 [sqlfluff:indentation]
 tab_space_size = 4

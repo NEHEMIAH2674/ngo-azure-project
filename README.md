@@ -132,21 +132,27 @@ The asset graph is four raw-ingestion assets plus `fx_rates`, feeding the full d
 
 ## CI/CD
 
-Every push runs `.github/workflows/ci.yml`: Python lint, unit tests, a SQL lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair that never touches the dev data. Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.
+`.github/workflows/ci.yml` is two jobs, not one:
+
+- **`test`** — every push, every PR, any branch. Python lint (ruff) and the ingestion unit tests only; no BigQuery/dbt involved, so it never touches either dataset group and needs no GCP auth at all.
+- **`deploy_prod`** — only on a push to `main`, and only once `test` has passed (`needs: test`, `if: github.ref == 'refs/heads/main'`). This is where the SQL lint (sqlfluff), ingestion, FX refresh, and a full `dbt build` actually run, all against prod.
+
+Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.
 
 ## Environments
 
-Three dbt targets, three dataset groups, same GCP project — never sharing tables:
+Two dbt targets, two dataset groups, same GCP project — never sharing tables:
 
 | Target | Datasets | Who writes to it | Rebuilt |
 |---|---|---|---|
-| `dev` (default) | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally | On demand — see "Deleting everything and rebuilding from scratch" above |
-| `ci` | `dlight_raw_ci`, `dlight_analytics_ci_{staging,intermediate,marts}` | Only GitHub Actions' `test` job | Every push, from scratch |
-| `prod` | `dlight_raw_prod`, `dlight_analytics_prod_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, after `test` passes |
+| `dev` (default) | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally — model, run `dbt build`/`dbt run`, and validate here before pushing | On demand — see "Deleting everything and rebuilding from scratch" above |
+| `prod` | `dlight_raw_prod`, `dlight_analytics_prod_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, once `test` passes |
 
-`prod` is deliberately CI/CD-only: `deploy_prod` (`.github/workflows/ci.yml`) is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after everything else is green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
+`prod` is deliberately CI/CD-only: `deploy_prod` is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after lint and unit tests are green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
 
-One honest limit: today all three targets authenticate as the same service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`), scoped to this one case study. A real production rollout would give `prod` its own, more narrowly-scoped service account and grant analysts read-only IAM on just the prod marts dataset — enforcing the boundary at the IAM layer, not only the workflow layer. That needs permissions (creating service accounts, setting IAM policy) beyond what's granted for this exercise, so it's a recommendation rather than something built here.
+The trade-off, stated plainly rather than glossed over: a model that fails to build is only caught at merge time (inside `deploy_prod`), not on the PR itself, since there's no third copy of the data for a PR-time job to validate against. That's why validating locally against `dev` before pushing still matters — it's the pre-merge check this design relies on instead of a CI-only sandbox.
+
+One more honest limit: `dev` and `prod` currently authenticate as the same service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`), scoped to this one case study. A real production rollout would give `prod` its own, more narrowly-scoped service account and grant analysts read-only IAM on just the prod marts dataset — enforcing the boundary at the IAM layer, not only the workflow layer. That needs permissions (creating service accounts, setting IAM policy) beyond what's granted for this exercise, so it's a recommendation rather than something built here.
 
 ## Dashboard (bonus)
 
