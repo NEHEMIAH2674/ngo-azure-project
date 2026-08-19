@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: dlight_raw
     database: "{{ env_var('GCP_PROJECT_ID') }}"
-    schema: "{{ env_var('BQ_RAW_DATASET', 'dlight_raw') }}"
+    schema: "{{ env_var('BQ_RAW_DATASET', 'dev_dlight_raw') }}"
     description: >
       Append-only landing tables loaded verbatim by ingestion/load_csv_to_bq.py.
       Every business column is STRING with no casting, trimming, or

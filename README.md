@@ -145,10 +145,12 @@ Two dbt targets, two dataset groups, same GCP project — never sharing tables:
 
 | Target | Datasets | Who writes to it | Rebuilt |
 |---|---|---|---|
-| `dev` (default) | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally — model, run `dbt build`/`dbt run`, and validate here before pushing | On demand — see "Deleting everything and rebuilding from scratch" above |
-| `prod` | `dlight_raw_prod`, `dlight_analytics_prod_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, once `test` passes |
+| `dev` (default) | `dev_dlight_raw`, `dev_dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally — model, run `dbt build`/`dbt run`, and validate here before pushing | On demand — see "Deleting everything and rebuilding from scratch" above |
+| `prod` | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, once `test` passes |
 
-`prod` is deliberately CI/CD-only: `deploy_prod` is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after lint and unit tests are green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
+The plain, unmarked name is **prod**, not dev — the opposite of how this looked earlier on. That's deliberate: the ready-for-use dataset a BI tool or analyst would actually query should have the name with no caveat attached, and the one still being iterated on should carry the label. The corollary matters more than the naming itself: every default in this repo (`ingestion/common.py`'s `get_raw_dataset()`/`get_analytics_dataset()`, `dbt/profiles.yml`'s `dev` target) falls back to the `dev_` prefixed name when an env var is simply unset — so forgetting to configure something lands you in dev, never silently in prod. `deploy_prod` is the one and only place that explicitly overrides both to reach the plain name.
+
+`prod` is deliberately CI/CD-only beyond that: `deploy_prod` is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after lint and unit tests are green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
 
 The trade-off, stated plainly rather than glossed over: a model that fails to build is only caught at merge time (inside `deploy_prod`), not on the PR itself, since there's no third copy of the data for a PR-time job to validate against. That's why validating locally against `dev` before pushing still matters — it's the pre-merge check this design relies on instead of a CI-only sandbox.
 

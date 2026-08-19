@@ -7,10 +7,14 @@ dlight_callcentre_analytics:
     dev:
       # Local iteration only. Model, run dbt build/dbt run, and validate
       # here before pushing -- this target is never touched by CI/CD.
+      # dev_ prefixed on purpose: prod is the plain, unmarked name below,
+      # so the unset-env-var default has to point at dev, not prod -- see
+      # get_analytics_dataset()/get_raw_dataset() in ingestion/common.py
+      # for the same rule applied to the raw dataset.
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID') }}"
-      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics') }}"
+      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dev_dlight_analytics') }}"
       location: "{{ env_var('BQ_LOCATION', 'US') }}"
       impersonate_service_account: "{{ env_var('BQ_IMPERSONATE_SERVICE_ACCOUNT', '') }}"
       threads: 4
@@ -28,6 +32,14 @@ dlight_callcentre_analytics:
       # google.auth.default()) understands both; `service-account`/
       # `keyfile` only understands the legacy kind.
       #
+      # The plain, unmarked dataset name (dlight_analytics, not
+      # dlight_analytics_prod) is deliberate: it's the ready-for-use
+      # dataset a BI tool or analyst would query, so it gets the name with
+      # no caveat attached, and dev carries the dev_ marker instead of the
+      # other way around. This only works because get_*_dataset()'s
+      # defaults point at dev, not this -- deploy_prod is the one place
+      # that explicitly overrides both env vars to reach here.
+      #
       # Known limit: dev and prod currently share one service account
       # (scoped to this case study only). A real rollout would give prod
       # its own, more narrowly-scoped SA and grant analysts read-only
@@ -36,7 +48,7 @@ dlight_callcentre_analytics:
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID') }}"
-      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics_prod') }}"
+      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics') }}"
       location: "{{ env_var('BQ_LOCATION', 'US') }}"
       threads: 4
       priority: interactive

@@ -1,4 +1,6 @@
-"""Streamlit dashboard on top of the dbt marts (dlight_analytics_marts.*).
+"""Streamlit dashboard on top of the dbt marts ({dataset}_marts.*, where
+dataset comes from get_analytics_dataset() -- dev_dlight_analytics by
+default, or dlight_analytics if BQ_ANALYTICS_DATASET is pointed at prod).
 
 Reads only from the marts -- never raw or staging -- the same layering rule
 the rest of this repo follows. Run via `make dashboard` or:
@@ -48,7 +50,7 @@ st.set_page_config(page_title="d.light Call-Centre Effectiveness", page_icon="\U
 
 
 # --------------------------------------------------------------------------
-# Data access -- cached; reads only dlight_analytics_marts.*
+# Data access -- cached; reads only {dataset}_marts.*, never raw/staging
 # --------------------------------------------------------------------------
 @st.cache_resource
 def _client():
@@ -180,7 +182,7 @@ if selected_days:
 # Header + KPI row
 # --------------------------------------------------------------------------
 st.title("d.light Call-Centre Effectiveness")
-st.caption("Kenya · Uganda · Tanzania · Nigeria — built on `dlight_analytics_marts`")
+st.caption(f"Kenya · Uganda · Tanzania · Nigeria — built on `{get_analytics_dataset()}_marts`")
 
 total_outbound = int(daily_f["total_outbound_calls"].sum())
 coded_calls = int(daily_f["coded_calls"].sum())

@@ -50,11 +50,16 @@ def get_project_id() -> str:
 
 
 def get_raw_dataset() -> str:
-    return os.environ.get("BQ_RAW_DATASET", "dlight_raw")
+    # Defaults to the dev-prefixed name, deliberately: prod is the plain,
+    # unmarked dataset name (dlight_raw), so an env var left unset must
+    # land you in dev, never silently in prod. Only the deploy_prod CI job
+    # (.github/workflows/ci.yml) explicitly overrides this to the plain
+    # name -- nothing else in this repo does, or should.
+    return os.environ.get("BQ_RAW_DATASET", "dev_dlight_raw")
 
 
 def get_analytics_dataset() -> str:
-    return os.environ.get("BQ_ANALYTICS_DATASET", "dlight_analytics")
+    return os.environ.get("BQ_ANALYTICS_DATASET", "dev_dlight_analytics")
 
 
 def _require_env(name: str) -> str:

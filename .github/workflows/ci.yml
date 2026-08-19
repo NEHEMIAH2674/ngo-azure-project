@@ -52,8 +52,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: npd-01
-      BQ_RAW_DATASET: dlight_raw_prod
-      BQ_ANALYTICS_DATASET: dlight_analytics_prod
+      # Plain, unmarked names -- this is the one place in the repo that
+      # deliberately overrides the dev-prefixed defaults in
+      # ingestion/common.py to reach the ready-for-use dataset.
+      BQ_RAW_DATASET: dlight_raw
+      BQ_ANALYTICS_DATASET: dlight_analytics
       BQ_LOCATION: US
       DBT_TARGET: prod
     steps:
