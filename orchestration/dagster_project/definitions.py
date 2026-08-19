@@ -26,10 +26,23 @@ from .checks import raw_ingestion_checks
 from .dbt_project import dlight_dbt_project
 from .freshness import freshness_checks
 
+# max_concurrent=1: the default multiprocess executor spawns a fresh
+# subprocess per step, and each one re-imports this whole module -- which
+# re-triggers dlight_dbt_project.prepare_if_dev() (dbt deps + dbt parse) as
+# an import-time side effect. The 4 raw ingestion assets have no
+# interdependencies, so with unlimited concurrency they all launch at once
+# and race on the same dbt_packages/ directory: one subprocess's dbt deps
+# reinstall transiently empties it while a sibling's dbt parse reads it,
+# and the step fails with "0 package(s) installed in dbt_packages" --
+# verified directly (two consecutive runs failed this exact way; serial
+# execution fixed it). This pipeline's data volume doesn't need real
+# per-step parallelism, so serializing is the right trade-off here rather
+# than working around dagster-dbt's dev-mode manifest preparation.
 daily_pipeline_job = dg.define_asset_job(
     name="daily_pipeline",
     description="Ingest all sources, refresh FX rates, then rebuild the full dbt graph.",
     selection=dg.AssetSelection.all(),
+    executor_def=dg.multiprocess_executor.configured({"max_concurrent": 1}),
 )
 
 daily_schedule = dg.ScheduleDefinition(
