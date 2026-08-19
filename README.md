@@ -134,6 +134,20 @@ The asset graph is four raw-ingestion assets plus `fx_rates`, feeding the full d
 
 Every push runs `.github/workflows/ci.yml`: Python lint, unit tests, a SQL lint of the dbt models, then a full `dbt build` against an isolated `dlight_raw_ci` / `dlight_analytics_ci` dataset pair that never touches the dev data. Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.
 
+## Environments
+
+Three dbt targets, three dataset groups, same GCP project — never sharing tables:
+
+| Target | Datasets | Who writes to it | Rebuilt |
+|---|---|---|---|
+| `dev` (default) | `dlight_raw`, `dlight_analytics_{staging,intermediate,marts}` | Whoever's iterating locally | On demand — see "Deleting everything and rebuilding from scratch" above |
+| `ci` | `dlight_raw_ci`, `dlight_analytics_ci_{staging,intermediate,marts}` | Only GitHub Actions' `test` job | Every push, from scratch |
+| `prod` | `dlight_raw_prod`, `dlight_analytics_prod_{staging,intermediate,marts}` | Only GitHub Actions' `deploy_prod` job | Every push to `main`, after `test` passes |
+
+`prod` is deliberately CI/CD-only: `deploy_prod` (`.github/workflows/ci.yml`) is gated with `if: github.ref == 'refs/heads/main'` and `needs: test`, so it only runs after everything else is green, and nothing in this repo or its docs tells a human to point a local `dbt build` at it. That's what makes "prod is never touched from a laptop" a fact about how the pipeline runs rather than a comment asking nicely — no separate `DBT_TARGET=prod` workflow exists for a person to accidentally reach for.
+
+One honest limit: today all three targets authenticate as the same service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`), scoped to this one case study. A real production rollout would give `prod` its own, more narrowly-scoped service account and grant analysts read-only IAM on just the prod marts dataset — enforcing the boundary at the IAM layer, not only the workflow layer. That needs permissions (creating service accounts, setting IAM policy) beyond what's granted for this exercise, so it's a recommendation rather than something built here.
+
 ## Dashboard (bonus)
 
 ```bash

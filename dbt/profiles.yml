@@ -28,3 +28,22 @@ dlight_callcentre_analytics:
       threads: 4
       priority: interactive
       job_execution_timeout_seconds: 300
+    prod:
+      # Deliberately CI/CD-only: this target is only ever invoked from the
+      # deploy_prod job in .github/workflows/ci.yml (gated to pushes on
+      # main, after tests pass), the same WIF auth as ci above -- never
+      # from a developer's machine. There's no separate IAM boundary
+      # enforcing that today (this case study's single service account is
+      # shared across dev/ci/prod; a real rollout would give prod its own
+      # narrowly-scoped SA and grant analysts read-only access to just the
+      # prod marts dataset), so the real protection right now is that
+      # nothing in this repo or its docs tells a human to set
+      # DBT_TARGET=prod locally -- see README's Environments section.
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BQ_ANALYTICS_DATASET', 'dlight_analytics_prod') }}"
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300

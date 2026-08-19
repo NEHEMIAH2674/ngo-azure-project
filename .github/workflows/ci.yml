@@ -85,3 +85,65 @@ jobs:
         env:
           DBT_PROFILES_DIR: .
         run: dbt build
+
+  # Deliberately a separate job, not a step in `test` above: `needs: test`
+  # means this only starts once every lint/unit-test/dbt-build step above
+  # has already passed, and the `if` restricts it to pushes on main (never
+  # a PR, never a feature branch). This is what makes "prod is written to
+  # only by CI/CD" a real, enforced fact rather than a comment -- the prod
+  # datasets below are created and populated by this job alone, never by a
+  # human running dbt locally with DBT_TARGET=prod.
+  deploy_prod:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: npd-01
+      BQ_RAW_DATASET: dlight_raw_prod
+      BQ_ANALYTICS_DATASET: dlight_analytics_prod
+      BQ_LOCATION: US
+      DBT_TARGET: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/777714686286/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+          service_account: dlight-case-study@npd-01.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: dbt deps
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: .
+        run: dbt deps
+
+      - name: Ingest into prod raw dataset
+        run: python ingestion/load_csv_to_bq.py
+
+      # No EXCHANGE_RATE_API_KEY secret is configured in this repo yet (same
+      # as the test job above), so this resolves to an empty string and
+      # exercises the same graceful missing-key no-op rather than failing
+      # the deploy. Add the secret in repo settings to make this a real
+      # fetch once a paid/persistent key exists.
+      - name: Refresh FX rates in prod
+        env:
+          EXCHANGE_RATE_API_KEY: ${{ secrets.EXCHANGE_RATE_API_KEY }}
+        run: python ingestion/api/fx/main.py
+
+      - name: dbt build (seed + run + test) against prod
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: .
+        run: dbt build
