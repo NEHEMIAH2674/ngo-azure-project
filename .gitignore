@@ -4,11 +4,12 @@ service-account*.json
 *-sa.json
 *credentials*.json
 
-# python
+# python / virtual environments
 __pycache__/
 *.pyc
 .venv/
 venv/
+dlight_venv/
 *.egg-info/
 
 # dbt

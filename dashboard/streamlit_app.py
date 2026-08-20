@@ -1,5 +1,5 @@
 """Streamlit dashboard on top of the dbt marts ({dataset}_marts.*, where
-dataset comes from get_analytics_dataset() -- dev_dlight_analytics by
+dataset comes from get_analytics_dataset() -- dlight_analytics by
 default, or dlight_analytics if BQ_ANALYTICS_DATASET is pointed at prod).
 
 Reads only from the marts -- never raw or staging -- the same layering rule
