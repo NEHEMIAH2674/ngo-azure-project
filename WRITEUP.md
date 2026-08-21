@@ -49,7 +49,7 @@ Every row in `fct_paid_post_call` currently shows `is_window_closed = true`, bec
 
 ### Metric 3 — Value recovered from call-centre intervention
 
-**$14,007.04 USD** across all four markets, once I configured a live exchange-rate key. Before that, the pipeline correctly returned `NULL` for every `attributed_payment_amount_usd` rather than fabricating a number — that's by design, not a bug.
+**$14,013 USD** across all four markets, once I configured a live exchange-rate key. Before that, the pipeline correctly returned `NULL` for every `attributed_payment_amount_usd` rather than fabricating a number — that's by design, not a bug.
 
 One caveat that actually matters: this figure is an *estimate*, and the pipeline says so rather than hiding it. The free tier of exchangerate-api.com doesn't include historical rate lookups, so every conversion here uses the *latest available* rate rather than the rate that actually applied on each payment's date. Every affected row carries `rate_is_estimated = true` in `raw.fx_rates`, and that flag is threaded all the way through `fct_paid_post_call` and `agg_daily_summary` to the dashboard, where it shows as a visible `*` next to the number rather than a footnote nobody reads. Over a 4-day sample the drift this introduces is small; it would compound over a real production window and should be revisited — a paid plan, or a provider with historical support — before this number is used for anything with money attached to it.
 
