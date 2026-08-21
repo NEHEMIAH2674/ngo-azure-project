@@ -43,7 +43,7 @@ Tanzania's number is the one I'd act on first. Three of four outbound calls ther
 
 There's an interesting inversion here: Tanzania has by far the worst coding rate but the best paid-post-call rate among the calls that do get coded. The volumes are small (67 coded outbound calls total), so I'd treat that as a hypothesis worth testing with more data rather than a finding on its own.
 
-**Attribution rule** (the brief left this open deliberately): each payment is attributed to the single nearest-preceding disposed call on the same contract, within the 3-day window. See Assumptions below for why.
+**Attribution rule** : each payment is attributed to the single nearest-preceding disposed call on the same contract, within the 3-day window. See Assumptions below for why.
 
 Every row in `fct_paid_post_call` currently shows `is_window_closed = true`, because the sample dates are already in the past relative to when I actually ran the pipeline. On a live daily run, the most recent 3 days would show `is_window_closed = false` and should be read as provisional — this is the moving-window problem the brief specifically asked how I'd handle, and it's a real column in the mart, not just a note in this document.
 
