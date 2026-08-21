@@ -8,7 +8,7 @@ This covers the five things the brief asked for: my answers to the four metrics,
 |---|---|
 | **1. Coding rate** | 44.68% overall — ranging from Kenya's 64.9% down to **Tanzania's 5.0%** |
 | **2. Paid post call** | 12.88% of dispositions with a contract are paid within 3 days |
-| **3. Value recovered** | **$14,007.04 USD** across all four markets (flagged as an estimate — see below) |
+| **3. Value recovered** | **$14,013 USD** across all four markets (flagged as an estimate — see below) |
 | **4. Inbound drivers** | Enquiry (50%), Service Request (21%), Complaints (17%), Customer Feedback (12%) |
 
 The single most useful thing in this dataset is Tanzania's coding rate: three of every four outbound calls there never even get a disposition logged, against roughly one in three for Kenya, Uganda, and Nigeria. That's worth a conversation before anything else in this write-up.
