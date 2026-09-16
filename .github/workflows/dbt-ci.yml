@@ -39,5 +39,6 @@ jobs:
           # Prevent accidental verbose logs
           PYTHONWARNINGS: "ignore"
         run: |
+          python -m dotenv -f ../.env run -- dbt deps --profiles-dir .
           python -m dotenv -f ../.env run -- dbt seed --profiles-dir .
           python -m dotenv -f ../.env run -- dbt run --profiles-dir .
