@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from load_csv_to_bq import read_and_validate
+from load_csv_to_adls import read_and_validate
 from sources import AMEYO_CALLS, PAYMENTS
 
 

@@ -1,6 +1,6 @@
 [sqlfluff]
 templater = dbt
-dialect = bigquery
+dialect = databricks
 max_line_length = 120
 # structure.column_order (ST06): disabled -- see comment further down.
 exclude_rules = structure.column_order

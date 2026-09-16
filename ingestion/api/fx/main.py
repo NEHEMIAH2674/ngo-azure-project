@@ -3,7 +3,7 @@
     python ingestion/api/fx/main.py
 
 See hook.py for the exchangerate-api.com client (auth, retry/backoff) and
-fx_operator.py for the BigQuery-facing task logic (which dates are missing,
+fx_operator.py for the Databricks-facing task logic (which dates are missing,
 idempotent upsert, historical-endpoint fallback).
 
 Note: the task-logic module is named fx_operator.py, not operator.py --

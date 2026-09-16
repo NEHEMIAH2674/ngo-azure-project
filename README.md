@@ -38,22 +38,22 @@ The full analysis — the four metrics, the data quality issues I found, the ass
 
 | | |
 |---|---|
-| **Stack** | Python · BigQuery · dbt · Dagster · Streamlit · GitHub Actions |
+| **Stack** | Python · Azure ADLS Gen2 · Databricks · dbt · Dagster · Streamlit · GitHub Actions |
 | **Ingestion** | Idempotent, from-scratch Python loader — no downloadable service-account key exists anywhere (org policy), so auth is Workload Identity Federation / impersonation throughout |
 | **Modelling** | 12 dbt models (staging → intermediate → marts), 33 automated tests, 1 macro |
 | **Orchestration** | Dagster asset graph linking raw ingestion to the full dbt DAG, with data-quality checks and a daily schedule |
-| **CI/CD** | Every push: Python lint, SQL lint, unit tests, and a full `dbt build` against an isolated BigQuery dataset |
+| **CI/CD** | Every push: Python lint, SQL lint, unit tests, and a full `dbt build` against an isolated Databricks catalog/schema |
 | **Result** | 46/46 pipeline checks passing, four metrics answered with real numbers, and one finding (Tanzania's coding rate) worth a same-day conversation with the call-centre team |
 
 ## How it's organized
 
 ```
 data/raw/*.csv ──┐
-                 ├──▶ ingestion/load_csv_to_bq.py ──▶ BigQuery raw.*  (append-only, byte-for-byte)
+                 ├──▶ ingestion/load_csv_to_adls.py ──▶ ADLS Gen2 raw blobs  (append-only, byte-for-byte)
 exchangerate     │
--api.com    ─────┘──▶ ingestion/api/fx/ (hook → operator) ──▶ BigQuery raw.fx_rates
+-api.com    ─────┘──▶ ingestion/api/fx/ (hook → operator) ──▶ Databricks table `fx_rates` (and ADLS raw export)
 
-BigQuery raw.* ──▶ dbt staging ──▶ dbt intermediate ──▶ dbt marts ──▶ Streamlit dashboard
+ADLS raw blobs ──▶ Databricks external tables / staging ──▶ dbt intermediate ──▶ dbt marts ──▶ Streamlit dashboard
 
 Dagster wires all of the above into one graph: raw ingestion → dbt's staging/
 intermediate/marts DAG, with asset checks and a daily schedule.
@@ -72,15 +72,15 @@ intermediate/marts DAG, with asset checks and a daily schedule.
 
 A few design choices worth knowing about before you dig in:
 
-- **Raw is raw.** Every business column lands in BigQuery exactly as it appears in the CSV — no casting, no trimming, no deduplication. That choice mattered in practice: it's what let me find and document a set of genuinely conflicting agent records (see WRITEUP.md, gap #4) that an earlier, more "helpful" version of the loader had been silently collapsing.
+- **Raw is raw.** Every business column lands in ADLS raw blobs (and is surfaced to Databricks external tables) exactly as it appears in the CSV — no casting, no trimming, no deduplication. That choice mattered in practice: it's what let me find and document a set of genuinely conflicting agent records (see WRITEUP.md, gap #4) that an earlier, more "helpful" version of the loader had been silently collapsing.
 - **No service-account keys exist.** This GCP org disables key export entirely, so every layer — local dev, Dagster, and CI — authenticates by impersonating a narrowly-scoped service account rather than a downloadable secret.
 - **Every number that could be wrong says so.** A payment still inside its 3-day attribution window is flagged `is_window_closed = false`, not silently included as final. A USD figure converted at an estimated exchange rate is flagged `*`, not presented as exact. Nothing here quietly assumes the best case.
 
 ## Prerequisites
 
 - Python 3.12+
-- A Google Cloud project with BigQuery enabled (this repo targets `npd-01`; point `GCP_PROJECT_ID` in `.env` at your own to run it elsewhere)
-- `gcloud` CLI, authenticated
+- Databricks workspace and a SQL warehouse (set `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN` in your `.env`)
+- Azure ADLS Gen2 storage account and container (set `AZURE_STORAGE_ACCOUNT`/`AZURE_CONTAINER_NAME` or `AZURE_STORAGE_CONNECTION_STRING`)
 - Optional, for Metric 3 in USD: a free key from [exchangerate-api.com](https://www.exchangerate-api.com/)
 
 ## Setup
@@ -91,13 +91,7 @@ cp .env.example .env
 pip install -r requirements.txt
 ```
 
-**Auth**: this org disables service-account key export, so there's no JSON key anywhere in this repo or on disk. Locally, you authenticate as yourself and impersonate a narrowly-scoped service account (`dlight-case-study@npd-01.iam.gserviceaccount.com`, granted only `bigquery.dataEditor` + `bigquery.jobUser`):
-
-```bash
-gcloud auth application-default login
-gcloud iam service-accounts add-iam-policy-binding dlight-case-study@npd-01.iam.gserviceaccount.com \
-  --member="user:<your-email>" --role="roles/iam.serviceAccountTokenCreator"
-```
+**Auth**: this repo uses ADLS/Databricks and expects credentials via environment variables or the `azure.identity` + Databricks PAT flow. For local development set the Databricks environment variables in `.env` and authenticate to Azure via the Azure CLI or environment-service principal credentials.
 
 ## Running it end to end
 
@@ -114,7 +108,7 @@ Or run the whole thing as one orchestrated pipeline (recommended — this is wha
 make dagster     # opens the Dagster UI at localhost:3000 — click "Materialize all"
 ```
 
-**What you should see**: two dataset groups in BigQuery — `dev_dlight_raw` (four landing tables plus `fx_rates` and `_load_manifest`, all untouched CSV data) and `dev_dlight_analytics_{staging,intermediate,marts}` (12 dbt models). Both `dbt build` and the Dagster run finish with **46 out of 46 steps passing** — 1 seed, 7 tables, 5 views, 33 tests. (There's also a `prod` copy under the plain, unmarked `dlight_raw`/`dlight_analytics_*` names — see Environments below for why the naming is split this way.)
+**What you should see**: raw CSVs uploaded to ADLS and exposed as Databricks external tables, with dbt producing `staging`, `intermediate`, and `marts` models in the target catalog/schema. Both `dbt build` and the Dagster run finish with **46 out of 46 steps passing** — 1 seed, 7 tables, 5 views, 33 tests. (There's also a `prod` copy under the production catalog/schema names — see Environments below for why the naming is split this way.)
 
 ### Deleting everything and rebuilding from scratch
 
@@ -183,7 +177,7 @@ A second, separate Windows issue turned up under load: the default multiprocess 
 
 `.github/workflows/ci.yml` is two jobs, not one:
 
-- **`test`** — every push, every PR, any branch. Python lint (ruff) and the ingestion unit tests only; no BigQuery/dbt involved, so it never touches either dataset group and needs no GCP auth at all.
+-- **`test`** — every push, every PR, any branch. Python lint (ruff) and the ingestion unit tests only; no Databricks/dbt involved, so it never touches remote state and needs no cloud auth at all.
 - **`deploy_prod`** — only on a push to `main`, and only once `test` has passed (`needs: test`, `if: github.ref == 'refs/heads/main'`). This is where the SQL lint (sqlfluff), ingestion, FX refresh, and a full `dbt build` actually run, all against prod.
 
 Auth uses Workload Identity Federation — no service-account key is stored in GitHub, consistent with the key-less design used everywhere else in this project.

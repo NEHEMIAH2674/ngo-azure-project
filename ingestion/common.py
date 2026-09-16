@@ -17,6 +17,59 @@ from pathlib import Path
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
+from typing import Any
+
+
+def get_analytics_dataset() -> str:
+    """Return the analytics dataset base name used by the dashboard and marts.
+
+    Returns a schema/catalog base like `dlight_analytics` (the Streamlit app
+    appends `_marts` to this where necessary).
+    """
+    return os.environ.get("DATABRICKS_ANALYTICS", "dlight_analytics")
+
+
+def get_databricks_client() -> Any:
+    """Return a lightweight Databricks SQL client adapter.
+
+    This adapter exposes a `query(sql)` method returning an object with
+    `.result()` (list[dict]) and `.to_dataframe()` (pandas.DataFrame).
+    It is intentionally minimal and only implements what this repo needs.
+    """
+    try:
+        from databricks import sql as dbsql  # type: ignore
+        import pandas as pd
+    except Exception as exc:  # pragma: no cover - runtime import
+        raise RuntimeError("databricks-sql-connector is required to query Databricks") from exc
+
+    class _Result:
+        def __init__(self, columns, rows):
+            self._cols = columns
+            self._rows = rows
+
+        def result(self):
+            return [dict(zip(self._cols, r)) for r in self._rows]
+
+        def to_dataframe(self):
+            return pd.DataFrame(self.result())
+
+    class _Client:
+        def __init__(self):
+            host = os.environ.get("DATABRICKS_HOST")
+            http_path = os.environ.get("DATABRICKS_HTTP_PATH")
+            token = os.environ.get("DATABRICKS_TOKEN")
+            if not (host and http_path and token):
+                raise RuntimeError("DATABRICKS_HOST/DATABRICKS_HTTP_PATH/DATABRICKS_TOKEN must be set in the environment")
+            self._conn = dbsql.connect(server_hostname=host, http_path=http_path, access_token=token)
+
+        def query(self, sql: str):
+            cur = self._conn.cursor()
+            cur.execute(sql)
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description] if cur.description else []
+            return _Result(cols, rows)
+
+    return _Client()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")

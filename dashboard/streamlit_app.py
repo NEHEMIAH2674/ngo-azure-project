@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO_ROOT / "ingestion"))
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from common import get_analytics_dataset, get_bigquery_client, get_project_id
+from common import get_analytics_dataset, get_databricks_client
 
 # --------------------------------------------------------------------------
 # Palette -- fixed categorical order (validated adjacent-pair CVD-safe), one
@@ -54,14 +54,13 @@ st.set_page_config(page_title="d.light Call-Centre Effectiveness", page_icon="\U
 # --------------------------------------------------------------------------
 @st.cache_resource
 def _client():
-    return get_bigquery_client()
+    return get_databricks_client()
 
 
 @st.cache_data(ttl=600)
 def load_mart(table: str) -> pd.DataFrame:
-    project = get_project_id()
     dataset = f"{get_analytics_dataset()}_marts"
-    return _client().query(f"SELECT * FROM `{project}.{dataset}.{table}`").to_dataframe()
+    return _client().query(f"SELECT * FROM {dataset}.{table}").to_dataframe()
 
 
 def _chart_layout(fig: go.Figure, title: str, y_title: str = "", show_legend: bool = False) -> go.Figure:
@@ -140,7 +139,7 @@ try:
     inbound = load_mart("fct_inbound_call_drivers")
 except Exception as exc:  # noqa: BLE001 -- surface any auth/connectivity issue plainly to the viewer
     st.error(
-        "Could not reach BigQuery. Confirm `.env` is configured and the marts have been built "
+        "Could not reach Databricks. Confirm `.env` is configured and the marts have been built "
         f"(`make transform`). Details: {exc}"
     )
     st.stop()

@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "ingestion"))
 
 import dagster as dg
-from common import fq_table, get_bigquery_client, get_raw_dataset
+from common import fq_table, get_databricks_client, get_raw_dataset
 
 # (asset_name, key_column) -- the column that should never be null for that source.
 _KEY_COLUMNS = [
@@ -31,9 +31,9 @@ def _make_row_count_check(asset_name: str) -> dg.AssetChecksDefinition:
         description=f"raw.{asset_name} must not be empty after a load.",
     )
     def _check() -> dg.AssetCheckResult:
-        client = get_bigquery_client()
+        client = get_databricks_client()
         table = fq_table(get_raw_dataset(), asset_name)
-        n = next(iter(client.query(f"SELECT COUNT(*) AS n FROM `{table}`").result()))["n"]
+        n = next(iter(client.query(f"SELECT COUNT(*) AS n FROM {table}").result()))["n"]
         return dg.AssetCheckResult(passed=n > 0, metadata={"row_count": n})
 
     return _check
@@ -46,10 +46,10 @@ def _make_null_key_check(asset_name: str, key_column: str) -> dg.AssetChecksDefi
         description=f"raw.{asset_name}.{key_column} is this source's grain key and must never be null.",
     )
     def _check() -> dg.AssetCheckResult:
-        client = get_bigquery_client()
+        client = get_databricks_client()
         table = fq_table(get_raw_dataset(), asset_name)
         n_null = next(iter(client.query(
-            f"SELECT COUNTIF({key_column} IS NULL OR {key_column} = '') AS n FROM `{table}`"
+            f"SELECT SUM(CASE WHEN {key_column} IS NULL OR {key_column} = '' THEN 1 ELSE 0 END) AS n FROM {table}"
         ).result()))["n"]
         return dg.AssetCheckResult(passed=n_null == 0, metadata={"null_count": n_null})
 
@@ -67,16 +67,16 @@ def _make_null_key_check(asset_name: str, key_column: str) -> dg.AssetChecksDefi
     ),
 )
 def fx_rates_covers_all_payment_dates() -> dg.AssetCheckResult:
-    client = get_bigquery_client()
+    client = get_databricks_client()
     payments_table = fq_table(get_raw_dataset(), "payments")
     fx_table = fq_table(get_raw_dataset(), "fx_rates")
-            missing = next(iter(client.query(f"""
+    missing = next(iter(client.query(f"""
         SELECT COUNT(*) AS n FROM (
-            SELECT DISTINCT DATE(try_cast(pay_timestamp_utc AS TIMESTAMP)) AS d
-            FROM `{payments_table}`
+            SELECT DISTINCT CAST(try_cast(pay_timestamp_utc AS TIMESTAMP) AS DATE) AS d
+            FROM {payments_table}
             WHERE pay_timestamp_utc IS NOT NULL
         ) p
-        LEFT JOIN (SELECT DISTINCT rate_date FROM `{fx_table}`) f
+        LEFT JOIN (SELECT DISTINCT rate_date FROM {fx_table}) f
             ON p.d = f.rate_date
         WHERE f.rate_date IS NULL
     """).result()))["n"]

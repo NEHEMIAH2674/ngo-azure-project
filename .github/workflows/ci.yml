@@ -105,7 +105,7 @@ jobs:
         run: sqlfluff lint models
 
       - name: Ingest into prod raw dataset
-        run: python ingestion/load_csv_to_bq.py
+        run: python ingestion/load_csv_to_adls.py
 
       # No EXCHANGE_RATE_API_KEY secret is configured in this repo yet, so
       # this resolves to an empty string and exercises the graceful

@@ -27,10 +27,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "ingestion"))
 
 import dagster as dg
-import load_csv_to_bq
+import load_csv_to_adls
 from api.fx.fx_operator import FxRatesOperator
 from api.fx.hook import ExchangeRateApiHook, FxPermanentError
-from common import get_bigquery_client
+from common import get_adls_client
 from dagster_dbt import DagsterDbtTranslator, DbtCliResource, dbt_assets
 from sources import SOURCES
 
@@ -47,13 +47,14 @@ def _make_raw_ingestion_asset(source) -> dg.AssetsDefinition:
         description=(
             f"Append-only landing of {source.filename} into "
             f"raw.{source.name}, gated by whole-file content hash "
-            f"(see ingestion/load_csv_to_bq.py)."
+            f"(see ingestion/load_csv_to_adls.py)."
         ),
     )
     def _asset(context: dg.AssetExecutionContext) -> dg.MaterializeResult:
-        client = get_bigquery_client()
-        load_csv_to_bq.ensure_infra(client)
-        result = load_csv_to_bq.load_source(client, source, INPUT_DIR)
+        # ADLS-backed raw landing: ensure manifest and upload to ADLS
+        load_csv_to_adls.ensure_infra()
+        adls_client = get_adls_client()
+        result = load_csv_to_adls.load_source_to_adls(adls_client, source, INPUT_DIR)
         context.log.info("%s: %s", source.name, result)
         return dg.MaterializeResult(
             metadata={

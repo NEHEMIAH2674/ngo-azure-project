@@ -6,7 +6,7 @@ install:
 
 # Load today's (or a given DATE=YYYY-MM-DD) CSV extracts into BigQuery raw.
 ingest:
-	python ingestion/load_csv_to_bq.py --date $(DATE)
+	python ingestion/load_csv_to_adls.py --date $(DATE) # load the 4 CSVs into ADLS raw blobs   (idempotent: re-running is a no-op)
 
 # Fetch/cache any missing daily FX rates needed by the payments in raw.
 fx:

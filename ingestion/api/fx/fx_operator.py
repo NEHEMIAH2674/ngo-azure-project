@@ -1,4 +1,4 @@
-"""FxRatesOperator -- the BigQuery-facing unit of work for FX rates.
+"""FxRatesOperator -- the Databricks-facing unit of work for FX rates.
 
 Named fx_operator.py rather than operator.py to avoid shadowing Python's
 own stdlib `operator` module -- see main.py's module docstring for why that
