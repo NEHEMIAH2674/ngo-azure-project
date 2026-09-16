@@ -4,3 +4,4 @@
 # would be a real problem specifically for orchestration/run_dagster_dev.sh
 # (a fix for a Windows-specific issue) on the exact platform it targets.
 *.sh text eol=lf
+data/raw/Payments[[:space:]]Data[[:space:]]Atlas.csv filter=lfs diff=lfs merge=lfs -text
