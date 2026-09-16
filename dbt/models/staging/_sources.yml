@@ -2,12 +2,12 @@ version: 2
 
 sources:
   - name: dlight_raw
-    database: "{{ env_var('GCP_PROJECT_ID') }}"
-    schema: "{{ env_var('BQ_RAW_DATASET', 'dev_dlight_raw') }}"
+    catalog: "{{ target.catalog }}"
+    schema: "{{ target.schema }}"
     description: >
-      Append-only landing tables loaded verbatim by ingestion/load_csv_to_bq.py.
+      Append-only landing tables loaded directly into Databricks / ADLS Gen2.
       Every business column is STRING with no casting, trimming, or
-      deduplication applied -- see that script's module docstring for why.
+      deduplication applied at ingestion.
     tables:
       - name: ameyo_calls
         description: One row per physical CSV row from every distinct Outbound Calls Ameyo.csv ever loaded.

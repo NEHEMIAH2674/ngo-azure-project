@@ -34,8 +34,7 @@ select
     coalesce(cps.attributed_payment_count, 0) > 0 as is_paid_post_call,
     coalesce(cps.has_unconverted_payment, false) as has_unconverted_payment,
     coalesce(cps.used_estimated_fx_rate, false) as used_estimated_fx_rate,
-    timestamp_add(d.disposed_at_utc, interval {{ var('paid_post_call_window_days') }} day) as window_closes_at_utc,
-    current_timestamp()
-    >= timestamp_add(d.disposed_at_utc, interval {{ var('paid_post_call_window_days') }} day) as is_window_closed
+    d.disposed_at_utc + INTERVAL {{ var('paid_post_call_window_days') }} DAY as window_closes_at_utc,
+    current_timestamp() >= d.disposed_at_utc + INTERVAL {{ var('paid_post_call_window_days') }} DAY as is_window_closed
 from {{ ref('stg_atlas__dispositions') }} as d
 left join {{ ref('int_call_payment_summary') }} as cps on d.call_log_id = cps.call_log_id

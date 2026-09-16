@@ -1,24 +1,11 @@
-"""Shared helpers for the ingestion scripts: config, BigQuery auth, logging.
+"""Shared helpers for the Azure ingestion scripts: config, Azure auth, logging.
 
 Auth strategy
 -------------
-This GCP org disables service-account key export (org policy
-`constraints/iam.disableServiceAccountKeyCreation`), so there is no JSON key
-file anywhere in this project. Instead:
-
-  - `google.auth.default()` loads *base* credentials the normal way (it reads
-    GOOGLE_APPLICATION_CREDENTIALS if set, otherwise the machine's ADC file).
-  - Those base credentials are used to *impersonate* a dedicated, narrowly
-    scoped service account (BQ_IMPERSONATE_SERVICE_ACCOUNT: BigQuery Data
-    Editor + Job User only) via short-lived tokens.
-
-This means the pipeline never runs with the base identity's full permissions,
-and there is no long-lived secret to leak, rotate, or accidentally commit.
-
-In CI, GOOGLE_APPLICATION_CREDENTIALS instead points at a short-lived key
-material written from a GitHub Actions secret at run time (see
-.github/workflows/ci.yml) and BQ_IMPERSONATE_SERVICE_ACCOUNT is left unset,
-so `google.auth.default()` alone is sufficient there.
+Uses `azure.identity.DefaultAzureCredential`, which sequentially checks:
+  1. Environment variables (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET)
+  2. Azure CLI login identity (`az login`) for local development
+  3. Managed Identity when deployed to Azure VMs, Web Apps, or Functions.
 """
 
 from __future__ import annotations
@@ -27,10 +14,9 @@ import logging
 import os
 from pathlib import Path
 
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
-from google.auth import default as google_auth_default
-from google.auth import impersonated_credentials
-from google.cloud import bigquery
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
@@ -45,56 +31,41 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def get_project_id() -> str:
-    return _require_env("GCP_PROJECT_ID")
+def get_storage_account() -> str:
+    return os.environ.get("AZURE_STORAGE_ACCOUNT", "nehemiahprojects")
+
+
+def get_container_name() -> str:
+    return os.environ.get("AZURE_CONTAINER_NAME", "raw-data")
+
+
+def get_adls_client() -> BlobServiceClient:
+    """Return an authenticated Azure BlobServiceClient instance."""
+    account_name = get_storage_account()
+    blob_url = f"https://{account_name}.blob.core.windows.net"
+    credential = DefaultAzureCredential()
+    return BlobServiceClient(account_url=blob_url, credential=credential)
 
 
 def get_raw_dataset() -> str:
-    # Defaults to the dev-prefixed name, deliberately: prod is the plain,
-    # unmarked dataset name (dlight_raw), so an env var left unset must
-    # land you in dev, never silently in prod. Only the deploy_prod CI job
-    # (.github/workflows/ci.yml) explicitly overrides this to the plain
-    # name -- nothing else in this repo does, or should.
-    return os.environ.get("BQ_RAW_DATASET", "dev_dlight_raw")
+    """Return the raw dataset identifier for SQL operations.
 
-
-def get_analytics_dataset() -> str:
-    return os.environ.get("BQ_ANALYTICS_DATASET", "dev_dlight_analytics")
-
-
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise RuntimeError(
-            f"Missing required environment variable {name!r}. "
-            f"Copy .env.example to .env and fill it in."
-        )
-    return value
-
-
-def get_bigquery_client() -> bigquery.Client:
-    """Return a BigQuery client, impersonating BQ_IMPERSONATE_SERVICE_ACCOUNT
-    when one is configured (local dev); using the ambient credentials as-is
-    otherwise (CI, or a GCE/Cloud Run identity in a future deployment).
+    For Databricks this is returned as <catalog>.<schema>. Values are
+    read from `DATABRICKS_CATALOG` and `DATABRICKS_SCHEMA` environment
+    variables with sensible defaults.
     """
-    project = get_project_id()
-    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-    base_credentials, _ = google_auth_default(scopes=scopes)
-
-    impersonate_sa = os.environ.get("BQ_IMPERSONATE_SERVICE_ACCOUNT")
-    if impersonate_sa:
-        credentials = impersonated_credentials.Credentials(
-            source_credentials=base_credentials,
-            target_principal=impersonate_sa,
-            target_scopes=scopes,
-            lifetime=3600,
-        )
-    else:
-        credentials = base_credentials
-
-    return bigquery.Client(project=project, credentials=credentials)
+    catalog = os.environ.get("DATABRICKS_CATALOG", "dlight_analytics")
+    schema = os.environ.get("DATABRICKS_SCHEMA", "dev_dlight_analytics")
+    return f"{catalog}.{schema}"
 
 
 def fq_table(dataset: str, table: str) -> str:
-    """Fully-qualified `project.dataset.table` name."""
-    return f"{get_project_id()}.{dataset}.{table}"
+    """Return a fully-qualified table identifier for SQL usage.
+
+    If `dataset` already contains a catalog portion (catalog.schema),
+    this returns `catalog.schema.table`. Otherwise returns
+    `dataset.table`.
+    """
+    if "." in dataset:
+        return f"{dataset}.{table}"
+    return f"{dataset}.{table}"

@@ -31,8 +31,8 @@ typed as (
         {{ clean_string('ameyo_user_id') }} as ameyo_user_id,
         {{ clean_string('team') }} as team,
         {{ clean_string('atlas_user_name') }} as atlas_user_name,
-        _source_file,
-        _ingested_at
+        CAST(NULL AS STRING) AS _source_file,
+        CAST(NULL AS TIMESTAMP) AS _ingested_at
     from source
     -- Can't reference the `ameyo_user_id` alias above in this WHERE clause
     -- (WHERE evaluates before SELECT in the same query), so the same

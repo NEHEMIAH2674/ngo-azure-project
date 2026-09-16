@@ -58,7 +58,7 @@ candidate_calls as (
         on
             p.contract_id = d.contract_id
             and p.paid_at_utc >= d.disposed_at_utc
-            and d.disposed_at_utc > timestamp_sub(p.paid_at_utc, interval {{ var('paid_post_call_window_days') }} day)
+            and d.disposed_at_utc > p.paid_at_utc - INTERVAL {{ var('paid_post_call_window_days') }} DAY
 ),
 
 attribution as (

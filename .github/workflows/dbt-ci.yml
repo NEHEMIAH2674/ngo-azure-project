@@ -1,0 +1,43 @@
+name: CI — dbt
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env <<'EOF'
+          DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_HTTP_PATH=${{ secrets.DATABRICKS_HTTP_PATH }}
+          DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+          AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          EXCHANGE_RATE_API_KEY=${{ secrets.EXCHANGE_RATE_API_KEY }}
+          EOF
+
+      - name: Run dbt
+        working-directory: dbt
+        env:
+          # Prevent accidental verbose logs
+          PYTHONWARNINGS: "ignore"
+        run: |
+          python -m dotenv -f ../.env run -- dbt seed --profiles-dir .
+          python -m dotenv -f ../.env run -- dbt run --profiles-dir .

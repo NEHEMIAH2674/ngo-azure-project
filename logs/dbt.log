@@ -1,0 +1,54 @@
+[0m06:06:44.871163 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000260F567CA70>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000260F20D8560>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000260F20DBEC0>]}
+
+
+============================== 06:06:44.871163 | d3015baf-3857-48fc-afce-11fe626afca4 ==============================
+[0m06:06:44.871163 [info ] [MainThread]: Running with dbt=1.11.11
+[0m06:06:44.871163 [debug] [MainThread]: running dbt with arguments {'version_check': 'True', 'no_print': 'None', 'static_parser': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'target_path': 'None', 'printer_width': '80', 'write_json': 'True', 'empty': 'None', 'log_cache_events': 'False', 'introspect': 'True', 'cache_selected_only': 'False', 'fail_fast': 'False', 'debug': 'False', 'log_format': 'default', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'profiles_dir': 'C:\\Users\\Nehemiah\\.dbt', 'indirect_selection': 'eager', 'use_colors': 'True', 'invocation_command': 'dbt debug', 'use_experimental_parser': 'False', 'log_path': 'logs'}
+[0m06:06:44.901313 [info ] [MainThread]: dbt version: 1.11.11
+[0m06:06:44.901708 [info ] [MainThread]: python version: 3.12.6
+[0m06:06:44.901708 [info ] [MainThread]: python path: C:\Python312\python.exe
+[0m06:06:44.902829 [info ] [MainThread]: os info: Windows-11-10.0.26200-SP0
+[0m06:06:49.661085 [info ] [MainThread]: Error importing adapter: No module named 'dbt.adapters.duckdb'
+[0m06:06:49.661085 [info ] [MainThread]: Using profiles dir at C:\Users\Nehemiah\.dbt
+[0m06:06:49.661085 [info ] [MainThread]: Using profiles.yml file at C:\Users\Nehemiah\.dbt\profiles.yml
+[0m06:06:49.661085 [info ] [MainThread]: Using dbt_project.yml file at C:\Users\Nehemiah\Documents\Nehemiah\ngo_data\dlight-callcentre-analytics\dbt_project.yml
+[0m06:06:49.661085 [info ] [MainThread]: Configuration:
+[0m06:06:49.661085 [info ] [MainThread]:   profiles.yml file [[31mERROR invalid[0m]
+[0m06:06:49.661085 [info ] [MainThread]:   dbt_project.yml file [[31mERROR not found[0m]
+[0m06:06:49.661085 [info ] [MainThread]: Required dependencies:
+[0m06:06:49.661085 [debug] [MainThread]: Executing "git --help"
+[0m06:06:49.686642 [debug] [MainThread]: STDOUT: "b"usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\n           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--no-lazy-fetch]\n           [--no-optional-locks] [--no-advice] [--bare] [--git-dir=<path>]\n           [--work-tree=<path>] [--namespace=<name>] [--config-env=<name>=<envvar>]\n           <command> [<args>]\n\nThese are common Git commands used in various situations:\n\nstart a working area (see also: git help tutorial)\n   clone      Clone a repository into a new directory\n   init       Create an empty Git repository or reinitialize an existing one\n\nwork on the current change (see also: git help everyday)\n   add        Add file contents to the index\n   mv         Move or rename a file, a directory, or a symlink\n   restore    Restore working tree files\n   rm         Remove files from the working tree and from the index\n\nexamine the history and state (see also: git help revisions)\n   bisect     Use binary search to find the commit that introduced a bug\n   diff       Show changes between commits, commit and working tree, etc\n   grep       Print lines matching a pattern\n   log        Show commit logs\n   show       Show various types of objects\n   status     Show the working tree status\n\ngrow, mark and tweak your common history\n   backfill   Download missing objects in a partial clone\n   branch     List, create, or delete branches\n   commit     Record changes to the repository\n   history    EXPERIMENTAL: Rewrite history\n   merge      Join two or more development histories together\n   rebase     Reapply commits on top of another base tip\n   reset      Set `HEAD` or the index to a known state\n   switch     Switch branches\n   tag        Create, list, delete or verify tags\n\ncollaborate (see also: git help workflows)\n   fetch      Download objects and refs from another repository\n   pull       Fetch from and integrate with another repository or a local branch\n   push       Update remote refs along with associated objects\n\n'git help -a' and 'git help -g' list available subcommands and some\nconcept guides. See 'git help <command>' or 'git help <concept>'\nto read about a specific subcommand or concept.\nSee 'git help git' for an overview of the system.\n""
+[0m06:06:49.688182 [debug] [MainThread]: STDERR: "b''"
+[0m06:06:49.688182 [info ] [MainThread]:  - git [[32mOK found[0m]
+
+[0m06:06:49.689521 [info ] [MainThread]: Connection test skipped since no profile was found
+[0m06:06:49.689999 [info ] [MainThread]: [31m2 checks failed:[0m
+[0m06:06:49.689999 [info ] [MainThread]: Could not load dbt_project.yml
+Profile loading failed for the following reason:
+Runtime Error
+  Credentials in profile "pula_analytics", target "dev" invalid: Runtime Error
+    Could not find adapter type duckdb!
+
+
+[0m06:06:49.689999 [info ] [MainThread]: Project loading failed for the following reason:
+ project path <C:\Users\Nehemiah\Documents\Nehemiah\ngo_data\dlight-callcentre-analytics\dbt_project.yml> not found
+
+[0m06:06:49.689999 [debug] [MainThread]: Command `dbt debug` failed at 06:06:49.689999 after 4.99 seconds
+[0m06:06:49.689999 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000260F43A5BE0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000260987C1BB0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000026098FEC560>]}
+[0m06:06:49.689999 [debug] [MainThread]: Flushing usage events
+[0m06:06:50.794818 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m08:58:46.593619 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000002310086FF20>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000023100EEBB00>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000023100EEAC30>]}
+
+
+============================== 08:58:46.606114 | 800d888b-ab43-4c07-b02d-7b4092deb71f ==============================
+[0m08:58:46.606114 [info ] [MainThread]: Running with dbt=1.11.11
+[0m08:58:46.606114 [debug] [MainThread]: running dbt with arguments {'version_check': 'True', 'no_print': 'None', 'static_parser': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'target_path': 'None', 'printer_width': '80', 'write_json': 'True', 'introspect': 'True', 'log_cache_events': 'False', 'empty': 'False', 'cache_selected_only': 'False', 'fail_fast': 'False', 'debug': 'False', 'log_format': 'default', 'profiles_dir': '.', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'partial_parse': 'True', 'use_colors': 'True', 'invocation_command': 'dbt compile --profiles-dir .', 'indirect_selection': 'eager', 'use_experimental_parser': 'False', 'log_path': 'logs'}
+[0m08:58:46.606114 [error] [MainThread]: Encountered an error:
+Runtime Error
+  No dbt_project.yml found at expected path C:\Users\Nehemiah\Documents\Nehemiah\ngo_data\dlight-callcentre-analytics\dbt_project.yml
+  Verify that each entry within packages.yml (and their transitive dependencies) contains a file named dbt_project.yml
+  
+[0m08:58:46.606114 [debug] [MainThread]: Command `dbt compile` failed at 08:58:46.606114 after 0.27 seconds
+[0m08:58:46.606114 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x00000231010BD970>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000002310145A2D0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000023102742450>]}
+[0m08:58:46.606114 [debug] [MainThread]: Flushing usage events
+[0m08:58:48.021709 [debug] [MainThread]: An error was encountered while trying to flush usage events

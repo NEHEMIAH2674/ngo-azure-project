@@ -30,10 +30,10 @@ real_call_log_ids as (
 candidates as (
     select
         c.call_id,
-        safe_cast(candidate as int64) as candidate_call_log_id
-    from calls as c,
-        unnest(regexp_extract_all(c.notes_raw, r'\d+')) as candidate
-    where c.notes_raw is not null
+        try_cast(candidate as BIGINT) as candidate_call_log_id
+    from calls as c
+    lateral view explode(split(regexp_replace(coalesce(c.notes_raw, ''), '[^0-9]+', ' '), ' ')) exploded as candidate
+    where c.notes_raw is not null and candidate != ''
 ),
 
 matched as (

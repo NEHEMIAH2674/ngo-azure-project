@@ -24,8 +24,8 @@ select
     agents.team as agent_team,
     agents.has_conflicting_source_rows as agent_has_conflicting_mapping,
     count(*) as total_outbound_calls,
-    countif(coded.is_coded) as coded_calls,
-    safe_divide(countif(coded.is_coded), count(*)) as coding_rate
+    sum(case when coded.is_coded then 1 else 0 end) as coded_calls,
+    {{ dbt_utils.safe_divide("sum(case when coded.is_coded then 1 else 0 end)", "count(*)") }} as coding_rate
 from coded
 left join agents
     on

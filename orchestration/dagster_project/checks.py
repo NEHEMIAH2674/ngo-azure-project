@@ -70,9 +70,9 @@ def fx_rates_covers_all_payment_dates() -> dg.AssetCheckResult:
     client = get_bigquery_client()
     payments_table = fq_table(get_raw_dataset(), "payments")
     fx_table = fq_table(get_raw_dataset(), "fx_rates")
-    missing = next(iter(client.query(f"""
+            missing = next(iter(client.query(f"""
         SELECT COUNT(*) AS n FROM (
-            SELECT DISTINCT DATE(SAFE_CAST(pay_timestamp_utc AS TIMESTAMP)) AS d
+            SELECT DISTINCT DATE(try_cast(pay_timestamp_utc AS TIMESTAMP)) AS d
             FROM `{payments_table}`
             WHERE pay_timestamp_utc IS NOT NULL
         ) p

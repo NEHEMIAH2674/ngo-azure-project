@@ -1,3 +1,31 @@
+# dlight-callcentre-analytics
+
+This repository contains dbt models, ingestion scripts, and orchestration for the DLight call-centre analytics project.
+
+Quick start (local):
+
+1. Copy credentials into a local `.env` (never commit this file).
+2. Install dependencies:
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+3. Run the FX ingestion and dbt locally:
+   ```bash
+   export PYTHONPATH=.
+   python -m dotenv -f .env run -- python ingestion/api/fx/main.py
+   cd dbt
+   python -m dotenv -f ../.env run -- dbt seed --profiles-dir .
+   python -m dotenv -f ../.env run -- dbt run --profiles-dir .
+   ```
+
+CI: A GitHub Actions workflow is provided at `.github/workflows/dbt-ci.yml` — populate the repository secrets listed below before enabling the workflow.
+
+Required GitHub secrets for CI:
+- `DATABRICKS_HOST`
+- `DATABRICKS_HTTP_PATH`
+- `DATABRICKS_TOKEN`
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `EXCHANGE_RATE_API_KEY`
 # d.light Call-Centre Effectiveness Pipeline
 
 **A BI Analytics Engineer case study, submitted by Nehemiah Onyinge.**

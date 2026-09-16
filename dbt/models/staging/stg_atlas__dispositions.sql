@@ -14,18 +14,18 @@ with source as (
 
 typed as (
     select
-        safe_cast(call_log_id as int64) as call_log_id,
-        safe_cast(tenant_id as int64) as atlas_tenant_id,
-        safe_cast(customer_id as int64) as customer_id,
-        safe_cast(contract_id as int64) as contract_id,
-        safe_cast(created_timestamp_utc as timestamp) as disposed_at_utc,
+        try_cast(call_log_id as BIGINT) as call_log_id,
+        try_cast(tenant_id as BIGINT) as atlas_tenant_id,
+        try_cast(customer_id as BIGINT) as customer_id,
+        try_cast(contract_id as BIGINT) as contract_id,
+        try_cast(created_timestamp_utc as TIMESTAMP) as disposed_at_utc,
         {{ clean_string('createdby') }} as created_by,
         {{ clean_string('call_type') }} as call_type,
         {{ clean_string('level_one') }} as level_one,
         {{ clean_string('level_two') }} as level_two,
         {{ clean_string('level_three') }} as level_three,
-        _source_file,
-        _ingested_at
+        CAST(NULL AS STRING) AS _source_file,
+        CAST(NULL AS TIMESTAMP) AS _ingested_at
     from source
 )
 

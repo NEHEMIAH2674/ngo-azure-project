@@ -25,12 +25,12 @@ typed as (
         {{ clean_string('campaign_name') }} as campaign_name,
         {{ clean_string('ch_call_type') }} as call_dial_type,
         {{ clean_string('ch_system_disposition') }} as system_disposition,
-        safe_cast(ch_contact_center_id as int64) as ameyo_contact_center_id,
-        safe_cast(total_talk_time as float64) as total_talk_time_ms,
+        try_cast(ch_contact_center_id as BIGINT) as ameyo_contact_center_id,
+        try_cast(total_talk_time as DOUBLE) as total_talk_time_ms,
         {{ clean_string('udh_notes') }} as notes_raw,
-        safe_cast(ch_date_added as datetime) as call_placed_at_local,
-        _source_file,
-        _ingested_at
+        try_cast(ch_date_added as TIMESTAMP) as call_placed_at_local,
+        CAST(NULL AS STRING) AS _source_file,
+        CAST(NULL AS TIMESTAMP) AS _ingested_at
     from source
 )
 
@@ -39,10 +39,7 @@ select
     c.country_name,
     c.atlas_tenant_id,
     c.currency_code,
-    timestamp_sub(
-        timestamp(t.call_placed_at_local),
-        interval c.local_tz_offset_hours hour
-    ) as call_placed_at_utc
+    timestamp(t.call_placed_at_local) - INTERVAL '1' HOUR * c.local_tz_offset_hours as call_placed_at_utc
 from typed as t
 left join {{ ref('country_code_mapping') }} as c
     on t.ameyo_contact_center_id = c.ameyo_contact_center_id

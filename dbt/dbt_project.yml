@@ -23,12 +23,11 @@ seeds:
     # only because of a missing config line, not a real layer. The seed is
     # a staging-layer concern (only staging models reference it), so it
     # belongs in the same dataset as the rest of staging.
-    +schema: staging
     country_code_mapping:
       +column_types:
-        ameyo_contact_center_id: int64
-        atlas_tenant_id: int64
-        local_tz_offset_hours: int64
+        ameyo_contact_center_id: BIGINT
+        atlas_tenant_id: BIGINT
+        local_tz_offset_hours: BIGINT
 
 models:
   dlight_callcentre_analytics:

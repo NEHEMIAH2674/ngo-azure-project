@@ -22,15 +22,15 @@ with source as (
 
 typed as (
     select
-        _payment_row_key as payment_row_key,
-        safe_cast(tenant_id as int64) as atlas_tenant_id,
-        safe_cast(contract_id as int64) as contract_id,
+        CONCAT_WS("-", tenant_id, contract_id, CAST(pay_timestamp_utc AS STRING)) AS payment_row_key,
         {{ clean_string('payment_request_provider') }} as payment_provider,
         {{ clean_string('create_program') }} as ingest_program,
-        safe_cast(amount as float64) as amount_local,
-        safe_cast(pay_timestamp_utc as timestamp) as paid_at_utc,
-        _source_file,
-        _ingested_at
+        try_cast(tenant_id as BIGINT) as atlas_tenant_id,
+        try_cast(contract_id as BIGINT) as contract_id,
+            try_cast(amount as DOUBLE) as amount_local,
+            try_cast(pay_timestamp_utc as TIMESTAMP) as paid_at_utc,
+        CAST(NULL AS STRING) AS _source_file,
+        CAST(NULL AS TIMESTAMP) AS _ingested_at
     from source
 ),
 

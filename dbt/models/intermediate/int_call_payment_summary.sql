@@ -7,8 +7,8 @@ select
     count(*) as attributed_payment_count,
     sum(amount_local) as attributed_payment_amount_local,
     sum(amount_usd) as attributed_payment_amount_usd,
-    logical_or(amount_usd is null) as has_unconverted_payment,
-    logical_or(coalesce(fx_rate_is_estimated, false)) as used_estimated_fx_rate,
+    (sum(case when amount_usd is null then 1 else 0 end) > 0) as has_unconverted_payment,
+    (sum(case when coalesce(fx_rate_is_estimated, false) then 1 else 0 end) > 0) as used_estimated_fx_rate,
     min(paid_at_utc) as first_attributed_payment_at
 from {{ ref('int_payment_attribution') }}
 where is_attributed_to_a_call
