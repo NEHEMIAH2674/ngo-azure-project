@@ -51,14 +51,11 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
-      GCP_PROJECT_ID: npd-01
-      # Plain, unmarked names -- this is the one place in the repo that
-      # deliberately overrides the dev-prefixed defaults in
-      # ingestion/common.py to reach the ready-for-use dataset.
-      BQ_RAW_DATASET: dlight_raw
-      BQ_ANALYTICS_DATASET: dlight_analytics
-      BQ_LOCATION: US
       DBT_TARGET: prod
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,52 +67,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # -------------------------------------------------------------
-      # Auth: Workload Identity Federation, not a downloadable JSON
-      # key. This project's org policy (constraints/iam.disableServ
-      # iceAccountKeyCreation) blocks key export outright, so this
-      # isn't a stylistic choice -- it's the only auth path available,
-      # and it happens to also be the safer one: no long-lived secret
-      # exists anywhere, on disk or in GitHub, to leak or rotate.
-      # -------------------------------------------------------------
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/777714686286/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-          service_account: dlight-case-study@npd-01.iam.gserviceaccount.com
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
       - name: dbt deps
         working-directory: dbt
         env:
           DBT_PROFILES_DIR: .
         run: dbt deps
 
-      # sqlfluff's dbt templater compiles the project the same way `dbt
-      # build` does (ref()/source() resolution, our clean_string() macro,
-      # etc.), so it needs the same auth + deps as the build step below --
-      # placed after both rather than lint SQL "for free" before auth is
-      # ready. Compiling is read-only; it doesn't touch prod data.
       - name: Lint SQL (sqlfluff)
         working-directory: dbt
         env:
           DBT_PROFILES_DIR: .
         run: sqlfluff lint models
 
-      - name: Ingest into prod raw dataset
+      - name: Ingest into prod raw dataset (ADLS)
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
         run: python ingestion/load_csv_to_adls.py
 
-      # No EXCHANGE_RATE_API_KEY secret is configured in this repo yet, so
-      # this resolves to an empty string and exercises the graceful
-      # missing-key no-op (log + continue) rather than failing the deploy
-      # -- exactly the failure path ingestion/api/fx/ is meant to handle.
-      # Add the secret in repo settings to make this a real fetch once a
-      # paid/persistent key exists.
       - name: Refresh FX rates in prod
         env:
           EXCHANGE_RATE_API_KEY: ${{ secrets.EXCHANGE_RATE_API_KEY }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: python ingestion/api/fx/main.py
 
       - name: dbt build (seed + run + test) against prod
